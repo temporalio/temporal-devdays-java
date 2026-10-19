@@ -134,7 +134,8 @@ Workflow Task from then on, and nothing in the code listened.
 Open `SubscriptionWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Lines 30-37 look like this:
+Read lines 30-37, the subscription's billing loop. You change it in
+**Change it**, below:
 
 ```java
     public SubscriptionResult run(SubscriptionInput input) {
@@ -146,6 +147,12 @@ Lines 30-37 look like this:
             // TODO 1 start: when the Service suggests it, continue as new with what this run has done
             // TODO 1 end
 ```
+
+**Look at** the `while` loop. Each cycle charges, sleeps and goes round again,
+and every cycle adds events to this one run's Event History. Nothing ever
+starts a fresh history, so it grows until the Temporal Service terminates the
+run. TODO 1 is the way out: hand the work to a new run while the history is
+still small.
 
 # Change it
 

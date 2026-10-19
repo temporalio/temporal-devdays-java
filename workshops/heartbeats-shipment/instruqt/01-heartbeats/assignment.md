@@ -126,13 +126,14 @@ packed a second time.
 
 # Where
 
-Three short edits, in two files.
+Three short edits, in two files. Read the three spots first. You make the
+edits in **Change it**, below.
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentWorkflowImpl.java TODO 1a before=5 -->
 Open `ShipmentWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Lines 9-15 look like this:
+Lines 9-15 set the options for every packing attempt:
 
 ```java
     private final ShipmentActivities activities = Workflow.newActivityStub(
@@ -144,8 +145,14 @@ Lines 9-15 look like this:
                     // TODO 1a end
 ```
 
+**Look at** the timeouts. The only one is the 20-second start-to-close, a
+ceiling on the whole attempt. Nothing notices an attempt that has gone silent,
+so a stuck attempt is retried only after the full 20 seconds. TODO 1a adds the
+timeout that notices silence.
+
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1c before=4 -->
-Then open `ShipmentActivitiesImpl.java`. Lines 14-20 look like this:
+Then open `ShipmentActivitiesImpl.java`. Lines 14-20 are the top of the
+packing Activity:
 
 ```java
     public ShipmentResult packShipment(ShipmentInput input) {
@@ -157,8 +164,12 @@ Then open `ShipmentActivitiesImpl.java`. Lines 14-20 look like this:
         // TODO 1c end
 ```
 
+**Look at** `packed`. Every attempt starts it at 0, so a retry packs every
+item again, even the ones the failed attempt finished. TODO 1c starts it where
+the last attempt got to.
+
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1b before=6 -->
-And further down, lines 24-31:
+Further down, lines 24-31 are the packing loop:
 
 ```java
         try {
@@ -170,6 +181,11 @@ And further down, lines 24-31:
                 // TODO 1b start: Heartbeat the number of items packed so far
                 // TODO 1b end
 ```
+
+**Look at** what the loop tells Temporal: nothing. It logs each item, but
+Temporal hears nothing until the Activity returns. TODO 1b reports the count
+after every item. That proves the attempt is alive (for TODO 1a) and saves the
+count for the next attempt (for TODO 1c).
 
 # Change it
 

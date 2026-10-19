@@ -71,7 +71,8 @@ must not also leave the stock locked.
 Open `OrderFulfillmentWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Lines 59-67 look like this:
+Read lines 59-67, the two helpers `fulfill` uses to build the Saga and to
+unwind it. You change them in **Change it**, below:
 
 ```java
     // TODO 1 start: run the undos newest first, and keep going when one fails
@@ -88,6 +89,9 @@ Lines 59-67 look like this:
 `fulfill` calls `newSaga()` once at the start, registers an undo after each
 step with `saga.addCompensation(...)`, and calls `unwind(saga)` in its
 `catch (ActivityFailure e)` block, before it rethrows.
+
+**Look at** `unwind`. It is empty, so when a step fails, nothing runs the undos
+`fulfill` registered. That is the run you watched in Challenge 1.
 
 # Change it
 

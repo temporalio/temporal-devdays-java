@@ -85,7 +85,8 @@ succeeds. Releasing twice is the same bug.
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java TODO 3a before=1 -->
 Open `OrderActivitiesImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab (`Ctrl+P`, then
-the file name). Lines 48-50 look like this:
+the file name). Read lines 48-50, the top of the inventory undo. You add to
+it in **Change it**, below:
 
 ```java
     public void releaseInventoryIfReserved(Order order) {
@@ -94,7 +95,7 @@ the file name). Lines 48-50 look like this:
 ```
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java TODO 3b before=1 -->
-And lines 56-58, the refund:
+And lines 56-58, the top of the refund undo:
 
 ```java
     public void refundPaymentIfCharged(Order order) {
@@ -105,6 +106,10 @@ And lines 56-58, the refund:
 The `Ledger` class already has the two questions you need:
 `Ledger.isReserved(orderId)` and `Ledger.isCharged(orderId)`. Each is `true`
 only while the effect still stands.
+
+**Look at** what follows each TODO: the undo records its effect without asking
+whether there is anything to undo. Since the last Challenge, each undo is
+registered before its step, so it can run for a step that never took effect.
 
 # Change it
 

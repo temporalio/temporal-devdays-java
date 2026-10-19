@@ -64,11 +64,18 @@ Challenges. -->
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/<pkg>/<File>.java TODO N -->
 Open `<File>.java` in the [button label="Exercise" background="#444CE7"](tab-0)
 tab. Press `Ctrl+P` (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Lines A-B look like this:
+Read lines A-B, <what this code is>. You change them in **Change it**, below:
 
 ```java
 <filled in by: python3 scripts/check-snippets.py workshops/<slug> --fix>
 ```
+
+<!-- Every snippet says whether the learner acts now or only reads, and ends
+with a "Look at" line: the one thing to notice, why it is wrong or matters,
+and which TODO fixes it. -->
+
+**Look at** <the line or construct that matters>. <What it does today and why
+that breaks the business outcome.> TODO N <changes what>.
 
 # Change it
 

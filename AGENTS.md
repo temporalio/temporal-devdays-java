@@ -35,6 +35,10 @@ between repos or changing the Sandbox Image.
 - **The first Challenge explains every tab.** A `# Your tabs` section lists
   each tab in the Challenge's `tabs:`, with its button and one line on what it
   is for, worded for this Workshop. Never just say the buttons are clickable.
+- **Every code snippet says what to do with it.** The text before it says
+  whether the learner changes the code now or only reads it, and what the code
+  is. A `**Look at**` line after it names the one thing to notice, why it
+  matters, and which TODO changes it. Never a bare "lines A-B look like this".
 - New Workshops start from `workshops/_template/`. Sandbox Images build `FROM`
   the shared `sandbox-base/` image (ADR 0003).
 

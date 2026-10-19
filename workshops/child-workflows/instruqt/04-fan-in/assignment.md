@@ -54,7 +54,7 @@ returns early ships an empty order and throws the packing work away.
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/childworkflows/PackWorkflowImpl.java TODO 1 -->
 Open `PackWorkflowImpl.java` in the [button label="Exercise" background="#444CE7"](tab-0)
 tab. Press `Ctrl+P` (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Lines 25-30 look like this:
+Read lines 25-30, the end of `pack`. You change them in **Change it**, below:
 
 ```java
         // TODO 1 start
@@ -67,6 +67,10 @@ Lines 25-30 look like this:
 
 `boxes` is the `List<Promise<String>>` the fan-out loop above filled, one
 `Promise` per child, in item order.
+
+**Look at** `return List.of();`. The parent returns before any child has
+finished, and that is why the last Challenge's children were terminated.
+TODO 1 makes the parent wait for every child and return their boxes.
 
 # Change it
 

@@ -6,7 +6,7 @@ find it (ADR 0002). That only helps while the snippet and its line range are
 true. Mark each snippet in an assignment.md like this:
 
     <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderWorkflowImpl.java TODO 1 -->
-    Open `OrderWorkflowImpl.java`. Lines 18-22 look like this:
+    Open `OrderWorkflowImpl.java`. Read lines 18-22, the order's steps:
 
     ```java
     ...

@@ -58,7 +58,7 @@ running. By default it takes them down with it, and the work is lost.
 Nothing to change yet. Open `PackWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Lines 13-30 look like this:
+Read lines 13-30, the fan-out:
 
 ```java
         // Fan out: start one child per item, without waiting for any of them.

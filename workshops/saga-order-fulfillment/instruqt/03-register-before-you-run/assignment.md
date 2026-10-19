@@ -90,7 +90,8 @@ charge throws, that line never runs.
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2a -->
 Open `OrderFulfillmentWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab (`Ctrl+P`, then
-`Ctrl+G` to jump to a line). Lines 37-40 look like this:
+`Ctrl+G` to jump to a line). Read lines 37-40, the first step and its undo.
+You swap them in **Change it**, below:
 
 ```java
             // TODO 2a start: register the undo BEFORE the step, so swap these two statements
@@ -100,7 +101,7 @@ Open `OrderFulfillmentWorkflowImpl.java` in the
 ```
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2b -->
-And lines 42-45, just below:
+And lines 42-45, just below, the charge and its undo:
 
 ```java
             // TODO 2b start: same swap for the charge
@@ -112,6 +113,10 @@ And lines 42-45, just below:
 `saga.addCompensation(activities::releaseInventoryIfReserved, order)` does not
 run anything. It pushes "call `releaseInventoryIfReserved(order)`" onto the
 Saga's stack, for `compensate()` to run later.
+
+**Look at** the order: each step runs first, and its undo is registered after.
+If `chargePayment` charges the card and then fails, the line that registers the
+refund never runs, so the unwind has no refund to run.
 
 # Change it
 
