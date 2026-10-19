@@ -124,15 +124,13 @@ attempt's 20 seconds run out, it prints:
 **Slow, and from item 0.** The items the crashed Worker had already packed get
 packed a second time.
 
-# Where
+# Step 1 of 3: notice a silent attempt (TODO 1a)
 
-Three short edits, in two files. Read the three spots first. You make the
-edits in **Change it**, below.
-
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentWorkflowImpl.java TODO 1a before=5 -->
-Open `ShipmentWorkflowImpl.java` in the
+**Observe.** Open `ShipmentWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentWorkflowImpl.java TODO 1a before=5 -->
 Lines 9-15 set the options for every packing attempt:
 
 ```java
@@ -145,31 +143,40 @@ Lines 9-15 set the options for every packing attempt:
                     // TODO 1a end
 ```
 
-**Look at** the timeouts. The only one is the 20-second start-to-close, a
-ceiling on the whole attempt. Nothing notices an attempt that has gone silent,
-so a stuck attempt is retried only after the full 20 seconds. TODO 1a adds the
-timeout that notices silence.
+**Learn.** The only timeout is the 20-second start-to-close, a ceiling on the
+whole attempt. Nothing notices an attempt that has gone silent, so a stuck
+attempt is retried only after the full 20 seconds. A Heartbeat Timeout does:
+if that long passes with no Heartbeat, Temporal treats the attempt as lost and
+the retry options start the next one.
 
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1c before=4 -->
-Then open `ShipmentActivitiesImpl.java`. Lines 14-20 are the top of the
-packing Activity:
+**Do.**
+
+- [ ] Between the TODO 1a markers, add a Heartbeat Timeout of 2 seconds to the
+  `ActivityOptions`.
+
+<details>
+<summary>Show solution</summary>
+
+<!-- snippet: solution/src/main/java/io/temporal/devdays/shipment/ShipmentWorkflowImpl.java TODO 1a -->
+Lines 14-16 of `solution/.../ShipmentWorkflowImpl.java`:
 
 ```java
-    public ShipmentResult packShipment(ShipmentInput input) {
-        ActivityExecutionContext context = Activity.getExecutionContext();
-        int attempt = context.getInfo().getAttempt();
-
-        // TODO 1c start: start from the count the last attempt Heartbeated, or 0 on a first attempt
-        int packed = 0;
-        // TODO 1c end
+                    // TODO 1a start: give up on an attempt when no Heartbeat arrives for 2 seconds
+                    .setHeartbeatTimeout(Duration.ofSeconds(2))
+                    // TODO 1a end
 ```
 
-**Look at** `packed`. Every attempt starts it at 0, so a retry packs every
-item again, even the ones the failed attempt finished. TODO 1c starts it where
-the last attempt got to.
+</details>
+
+Don't run it yet. A Heartbeat Timeout with no Heartbeats makes every attempt
+fail after 2 seconds, even a healthy one. Step 2 sends them.
+
+# Step 2 of 3: send a Heartbeat after each item (TODO 1b)
+
+**Observe.** Open `ShipmentActivitiesImpl.java`, the Activity that packs.
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1b before=6 -->
-Further down, lines 24-31 are the packing loop:
+Lines 24-31 are the packing loop:
 
 ```java
         try {
@@ -182,32 +189,58 @@ Further down, lines 24-31 are the packing loop:
                 // TODO 1b end
 ```
 
-**Look at** what the loop tells Temporal: nothing. It logs each item, but
-Temporal hears nothing until the Activity returns. TODO 1b reports the count
-after every item. That proves the attempt is alive (for TODO 1a) and saves the
-count for the next attempt (for TODO 1c).
+**Learn.** The loop logs each item, but Temporal hears nothing until the
+Activity returns. A Heartbeat is the "still here" signal the timeout from
+step 1 waits for. It can also carry details, and the count of packed items is
+the detail a retry needs.
 
-# Change it
+**Do.**
 
-- [ ] **1a**, `ShipmentWorkflowImpl.java`: add a Heartbeat Timeout of 2 seconds
-  to the `ActivityOptions`. If 2 seconds pass with no Heartbeat, Temporal treats
-  the attempt as lost, and the retry options start attempt 2.
-- [ ] **1b**, `ShipmentActivitiesImpl.java`: after each item, call
-  `context.heartbeat(packed)`. That is the "still here" signal, and it carries
-  the count.
-- [ ] **1c**, `ShipmentActivitiesImpl.java`: instead of `packed = 0`, start from
-  the count the last attempt sent. A retry finds it with
-  `context.getHeartbeatDetails(Integer.class)`, an `Optional<Integer>`. On a
-  first attempt it is empty, so start at 0.
-
-Do all three before you run it. A Heartbeat Timeout with no Heartbeats makes
-every attempt fail after 2 seconds, even a healthy one.
-
-Change only the lines between each `// TODO 1x start` and `// TODO 1x end`. The
-editor saves as you type, and the Worker restarts on every save.
+- [ ] Between the TODO 1b markers, call `context.heartbeat(packed)`.
 
 <details>
-<summary>Hint for 1c</summary>
+<summary>Show solution</summary>
+
+<!-- snippet: solution/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1b -->
+Lines 30-32 of `solution/.../ShipmentActivitiesImpl.java`:
+
+```java
+                // TODO 1b start: Heartbeat the number of items packed so far
+                context.heartbeat(packed);
+                // TODO 1b end
+```
+
+</details>
+
+# Step 3 of 3: resume where the last attempt stopped (TODO 1c)
+
+**Observe.** Stay in `ShipmentActivitiesImpl.java`.
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1c before=4 -->
+Lines 14-20 are the top of the same Activity:
+
+```java
+    public ShipmentResult packShipment(ShipmentInput input) {
+        ActivityExecutionContext context = Activity.getExecutionContext();
+        int attempt = context.getInfo().getAttempt();
+
+        // TODO 1c start: start from the count the last attempt Heartbeated, or 0 on a first attempt
+        int packed = 0;
+        // TODO 1c end
+```
+
+**Learn.** Every attempt starts `packed` at 0, so a retry packs every item
+again, even the ones the failed attempt finished. A retry can read the details
+of the last Heartbeat with `context.getHeartbeatDetails(Integer.class)`. It is
+an `Optional<Integer>`, empty on a first attempt.
+
+**Do.**
+
+- [ ] Between the TODO 1c markers, start `packed` from the last Heartbeat's
+  count, or 0 when there is none.
+
+<details>
+<summary>Hint</summary>
 
 The same shape, reading an optional setting with a fallback:
 
@@ -220,49 +253,18 @@ int port = Optional.ofNullable(System.getenv("PORT")).map(Integer::parseInt).orE
 <details>
 <summary>Show solution</summary>
 
-<!-- snippet: solution/src/main/java/io/temporal/devdays/shipment/ShipmentWorkflowImpl.java TODO 1a before=5 -->
-Lines 9-16 of `solution/.../ShipmentWorkflowImpl.java`:
+<!-- snippet: solution/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1c -->
+Lines 18-20 of `solution/.../ShipmentActivitiesImpl.java`:
 
 ```java
-    private final ShipmentActivities activities = Workflow.newActivityStub(
-            ShipmentActivities.class,
-            ActivityOptions.newBuilder()
-                    // A ceiling for the whole shipment, which takes about 12 seconds.
-                    .setStartToCloseTimeout(Duration.ofSeconds(20))
-                    // TODO 1a start: give up on an attempt when no Heartbeat arrives for 2 seconds
-                    .setHeartbeatTimeout(Duration.ofSeconds(2))
-                    // TODO 1a end
-```
-
-<!-- snippet: solution/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1c before=4 -->
-Lines 14-20 of `solution/.../ShipmentActivitiesImpl.java`:
-
-```java
-    public ShipmentResult packShipment(ShipmentInput input) {
-        ActivityExecutionContext context = Activity.getExecutionContext();
-        int attempt = context.getInfo().getAttempt();
-
         // TODO 1c start: start from the count the last attempt Heartbeated, or 0 on a first attempt
         int packed = context.getHeartbeatDetails(Integer.class).orElse(0);
         // TODO 1c end
 ```
 
-<!-- snippet: solution/src/main/java/io/temporal/devdays/shipment/ShipmentActivitiesImpl.java TODO 1b before=6 -->
-And lines 24-32:
-
-```java
-        try {
-            for (int item = packed; item < input.itemCount(); item++) {
-                packOneItem();
-                packed = item + 1;
-                log.info("packed item {} of {}", packed, input.itemCount());
-
-                // TODO 1b start: Heartbeat the number of items packed so far
-                context.heartbeat(packed);
-                // TODO 1b end
-```
-
 </details>
+
+The editor saves as you type, and the Worker restarts on every save.
 
 # Run it with Heartbeats
 

@@ -52,7 +52,7 @@ what happens to the children.
 **Why it matters:** a parent that returns early does not leave its children
 running. By default it takes them down with it, and the work is lost.
 
-# Where
+# Read the code
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/childworkflows/PackWorkflowImpl.java TODO 1 before=12 -->
 Nothing to change yet. Open `PackWorkflowImpl.java` in the

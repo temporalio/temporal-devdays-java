@@ -80,13 +80,14 @@ There is a second reason for the fix. A compensation is an ordinary Activity
 with an ordinary retry policy, so Temporal can run it more than once even when it
 succeeds. Releasing twice is the same bug.
 
-# Where
+# Step 1 of 2: make the release safe (TODO 3a)
+
+**Observe.** Open `OrderActivitiesImpl.java` in the
+[button label="Exercise" background="#444CE7"](tab-0) tab (`Ctrl+P`, then
+the file name).
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java TODO 3a before=1 -->
-Open `OrderActivitiesImpl.java` in the
-[button label="Exercise" background="#444CE7"](tab-0) tab (`Ctrl+P`, then
-the file name). Read lines 48-50, the top of the inventory undo. You add to
-it in **Change it**, below:
+Lines 48-50 are the top of the inventory undo:
 
 ```java
     public void releaseInventoryIfReserved(Order order) {
@@ -94,30 +95,16 @@ it in **Change it**, below:
         // TODO 3a end
 ```
 
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java TODO 3b before=1 -->
-And lines 56-58, the top of the refund undo:
+**Learn.** Right after the TODO, the undo records a release without asking
+whether anything is reserved. Since the last Challenge, each undo is registered
+before its step, so it can run for a step that never took effect, and a retry
+can run it twice. `Ledger.isReserved(orderId)` is `true` only while the stock
+is still held.
 
-```java
-    public void refundPaymentIfCharged(Order order) {
-        // TODO 3b start: return early when Ledger.isCharged(order.orderId()) is false
-        // TODO 3b end
-```
+**Do.**
 
-The `Ledger` class already has the two questions you need:
-`Ledger.isReserved(orderId)` and `Ledger.isCharged(orderId)`. Each is `true`
-only while the effect still stands.
-
-**Look at** what follows each TODO: the undo records its effect without asking
-whether there is anything to undo. Since the last Challenge, each undo is
-registered before its step, so it can run for a step that never took effect.
-
-# Change it
-
-- [ ] **TODO 3a:** if nothing is reserved, print a no-op line and `return`
-  before the release is recorded.
-- [ ] **TODO 3b:** the same guard for the refund, with `Ledger.isCharged`.
-
-Add your lines between each `start` and `end` marker. This is the last TODO.
+- [ ] Between the TODO 3a markers, if nothing is reserved, print a no-op line
+  and `return` before the release is recorded.
 
 <details>
 <summary>Hint</summary>
@@ -152,6 +139,31 @@ Lines 48-54 of `solution/.../OrderActivitiesImpl.java`:
         // TODO 3a end
 ```
 
+</details>
+
+# Step 2 of 2: make the refund safe (TODO 3b)
+
+**Observe.**
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java TODO 3b before=1 -->
+Lines 56-58 are the top of the refund undo:
+
+```java
+    public void refundPaymentIfCharged(Order order) {
+        // TODO 3b start: return early when Ledger.isCharged(order.orderId()) is false
+        // TODO 3b end
+```
+
+**Learn.** The same gap: a refund for a charge that never landed.
+`Ledger.isCharged(orderId)` is `true` only while the charge still stands.
+
+**Do.**
+
+- [ ] Between the TODO 3b markers, the same guard, with `Ledger.isCharged`.
+
+<details>
+<summary>Show solution</summary>
+
 <!-- snippet: solution/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java TODO 3b before=1 -->
 Lines 60-66:
 
@@ -166,6 +178,8 @@ Lines 60-66:
 ```
 
 </details>
+
+This is the last TODO.
 
 # Run it
 

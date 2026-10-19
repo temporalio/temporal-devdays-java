@@ -71,7 +71,7 @@ retried and read on its own, apart from the order that started it.
 - [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
   every order Workflow and the child Workflows it started, each with its own Event History.
 
-# Where
+# Read the code
 
 Nothing to change in this Challenge. Open `OrderWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab to read the parent.

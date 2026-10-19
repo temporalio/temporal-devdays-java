@@ -128,14 +128,14 @@ Now click any **Workflow Task Started** event after Event 40. It reads
 **Suggest Continue As New: true**. The Service suggested a rollover on every
 Workflow Task from then on, and nothing in the code listened.
 
-# Where
+# Roll the history over (TODO 1)
 
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/subscription/SubscriptionWorkflowImpl.java TODO 1 before=6 -->
-Open `SubscriptionWorkflowImpl.java` in the
+**Observe.** Open `SubscriptionWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Read lines 30-37, the subscription's billing loop. You change it in
-**Change it**, below:
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/subscription/SubscriptionWorkflowImpl.java TODO 1 before=6 -->
+Lines 30-37 are the subscription's billing loop:
 
 ```java
     public SubscriptionResult run(SubscriptionInput input) {
@@ -148,23 +148,23 @@ Read lines 30-37, the subscription's billing loop. You change it in
             // TODO 1 end
 ```
 
-**Look at** the `while` loop. Each cycle charges, sleeps and goes round again,
-and every cycle adds events to this one run's Event History. Nothing ever
-starts a fresh history, so it grows until the Temporal Service terminates the
-run. TODO 1 is the way out: hand the work to a new run while the history is
-still small.
+**Learn.** Each cycle charges, sleeps and goes round again, and every cycle
+adds events to this one run's Event History. Nothing ever starts a fresh
+history, so it grows until the Temporal Service terminates the run. When the
+history gets large, the Service suggests Continue-As-New:
+`Workflow.getInfo().isContinueAsNewSuggested()` turns `true`.
+`Workflow.continueAsNew(...)` then closes this run and starts a new one, with
+an empty history, under the same Workflow ID.
 
-# Change it
+The next run knows only the input you hand it. Pass `cyclesCompleted`, or every
+new run starts counting from 0 again and the subscription never finishes.
+
+**Do.** Between the TODO 1 markers:
 
 - [ ] After each cycle, check `Workflow.getInfo().isContinueAsNewSuggested()`.
 - [ ] When it is `true`, call `Workflow.continueAsNew(...)` with a
   `SubscriptionInput` that carries what this run has done:
   `subscriptionId`, `cyclesCompleted` and `maxCycles`.
-
-The next run knows only the input you hand it. Pass `cyclesCompleted`, or every
-new run starts counting from 0 again and the subscription never finishes.
-
-Change only the lines between `// TODO 1 start` and `// TODO 1 end`.
 
 <details>
 <summary>Hint</summary>
@@ -184,16 +184,10 @@ constructor, marked `@WorkflowInit`, reads the input you passed.
 <details>
 <summary>Show solution</summary>
 
-<!-- snippet: solution/src/main/java/io/temporal/devdays/subscription/SubscriptionWorkflowImpl.java TODO 1 before=6 -->
-Lines 30-40 of `solution/.../SubscriptionWorkflowImpl.java`:
+<!-- snippet: solution/src/main/java/io/temporal/devdays/subscription/SubscriptionWorkflowImpl.java TODO 1 -->
+Lines 36-40 of `solution/.../SubscriptionWorkflowImpl.java`:
 
 ```java
-    public SubscriptionResult run(SubscriptionInput input) {
-        while (maxCycles == 0 || cyclesCompleted < maxCycles) {
-            activities.chargeSubscription(subscriptionId, cyclesCompleted + 1);
-            cyclesCompleted++;
-            Workflow.sleep(Shared.CYCLE);
-
             // TODO 1 start: when the Service suggests it, continue as new with what this run has done
             if (Workflow.getInfo().isContinueAsNewSuggested()) {
                 Workflow.continueAsNew(new SubscriptionInput(subscriptionId, cyclesCompleted, maxCycles));

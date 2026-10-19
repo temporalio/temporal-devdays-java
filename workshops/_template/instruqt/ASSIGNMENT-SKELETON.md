@@ -59,31 +59,30 @@ Challenges. -->
 - [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
   <what this Workshop's learner will look at there.>
 
-# Where
+<!-- One section per TODO, in the order the learner makes them: Observe the
+code, Learn why it matters, Do the edit. Never a "Where" section that shows
+every spot followed by a "Change it" list. Use "Step N of M" headings when a
+Challenge has more than one TODO; one TODO gets a plain heading. -->
 
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/<pkg>/<File>.java TODO N -->
-Open `<File>.java` in the [button label="Exercise" background="#444CE7"](tab-0)
-tab. Press `Ctrl+P` (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Read lines A-B, <what this code is>. You change them in **Change it**, below:
+# Step 1 of M: <what this edit achieves> (TODO Na)
+
+**Observe.** Open `<File>.java` in the
+[button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
+(`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/<pkg>/<File>.java TODO Na -->
+Lines A-B are <what this code is>:
 
 ```java
 <filled in by: python3 scripts/check-snippets.py workshops/<slug> --fix>
 ```
 
-<!-- Every snippet says whether the learner acts now or only reads, and ends
-with a "Look at" line: the one thing to notice, why it is wrong or matters,
-and which TODO fixes it. -->
+**Learn.** <What the code does today, why that breaks the business outcome,
+and the Temporal idea that fixes it. Not the answer.>
 
-**Look at** <the line or construct that matters>. <What it does today and why
-that breaks the business outcome.> TODO N <changes what>.
+**Do.**
 
-# Change it
-
-- [ ] <First concrete edit, in words, not the answer.>
-- [ ] <Second, if the change has two parts.>
-
-Change only the lines between `// TODO N start` and `// TODO N end`. Leave the
-other TODOs alone; they are the next Challenges.
+- [ ] Between the TODO Na markers, <the concrete edit, in words, not the answer>.
 
 <details>
 <summary>Hint</summary>
@@ -95,9 +94,18 @@ other TODOs alone; they are the next Challenges.
 <details>
 <summary>Show solution</summary>
 
-<The finished lines, copied from solution/.../<File>.java.>
+<!-- snippet: solution/src/main/java/io/temporal/devdays/<pkg>/<File>.java TODO Na -->
+Lines A-B of `solution/.../<File>.java`:
+
+```java
+<filled in by --fix>
+```
 
 </details>
+
+# Step 2 of M: <...> (TODO Nb)
+
+<Same shape. Leave the other TODOs alone; they are the next Challenges.>
 
 # Run it
 

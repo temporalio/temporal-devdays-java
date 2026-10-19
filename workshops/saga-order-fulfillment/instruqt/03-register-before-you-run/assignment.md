@@ -85,13 +85,14 @@ the only undo after it is `ReleaseInventoryIfReserved`. There is no
 The refund is added to the Saga on the line **after** the charge. When the
 charge throws, that line never runs.
 
-# Where
+# Step 1 of 2: register the release first (TODO 2a)
+
+**Observe.** Open `OrderFulfillmentWorkflowImpl.java` in the
+[button label="Exercise" background="#444CE7"](tab-0) tab (`Ctrl+P`, then
+`Ctrl+G` to jump to a line).
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2a -->
-Open `OrderFulfillmentWorkflowImpl.java` in the
-[button label="Exercise" background="#444CE7"](tab-0) tab (`Ctrl+P`, then
-`Ctrl+G` to jump to a line). Read lines 37-40, the first step and its undo.
-You swap them in **Change it**, below:
+Lines 37-40 are the first step of `fulfill` and its undo:
 
 ```java
             // TODO 2a start: register the undo BEFORE the step, so swap these two statements
@@ -100,40 +101,17 @@ You swap them in **Change it**, below:
             // TODO 2a end
 ```
 
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2b -->
-And lines 42-45, just below, the charge and its undo:
+**Learn.** `saga.addCompensation(...)` does not run anything. It pushes "call
+`releaseInventoryIfReserved(order)`" onto the Saga's stack, for `compensate()`
+to run later. Here the step runs first and its undo is registered after. If
+`reserveInventory` holds the stock and then fails, the second line never runs,
+so the unwind has no release to run. Registered first, the undo is on the stack
+whatever the step does.
 
-```java
-            // TODO 2b start: same swap for the charge
-            activities.chargePayment(order);
-            saga.addCompensation(activities::refundPaymentIfCharged, order);
-            // TODO 2b end
-```
+**Do.**
 
-`saga.addCompensation(activities::releaseInventoryIfReserved, order)` does not
-run anything. It pushes "call `releaseInventoryIfReserved(order)`" onto the
-Saga's stack, for `compensate()` to run later.
-
-**Look at** the order: each step runs first, and its undo is registered after.
-If `chargePayment` charges the card and then fails, the line that registers the
-refund never runs, so the unwind has no refund to run.
-
-# Change it
-
-- [ ] **TODO 2a:** swap the two statements, so `saga.addCompensation(...)` comes
-  before `activities.reserveInventory(order)`.
-- [ ] **TODO 2b:** the same swap for the charge.
-
-Change only the lines between each `start` and `end` marker. Leave TODO 3 in
-`OrderActivitiesImpl.java` alone; it is the next Challenge.
-
-<details>
-<summary>Hint</summary>
-
-Ask of each pair: if the first line throws, does the second one run? An undo
-that is registered first is on the stack whatever the step does.
-
-</details>
+- [ ] Swap the two statements between the TODO 2a markers, so
+  `saga.addCompensation(...)` comes first.
 
 <details>
 <summary>Show solution</summary>
@@ -148,6 +126,33 @@ Lines 37-40 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
             // TODO 2a end
 ```
 
+</details>
+
+# Step 2 of 2: register the refund first (TODO 2b)
+
+**Observe.**
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2b -->
+Lines 42-45, just below, are the charge and its undo:
+
+```java
+            // TODO 2b start: same swap for the charge
+            activities.chargePayment(order);
+            saga.addCompensation(activities::refundPaymentIfCharged, order);
+            // TODO 2b end
+```
+
+**Learn.** The same gap, and it costs more here. If `chargePayment` charges the
+card and then reports failure, the refund was never registered, and the
+customer pays for an order that never ships.
+
+**Do.**
+
+- [ ] Swap the two statements between the TODO 2b markers.
+
+<details>
+<summary>Show solution</summary>
+
 <!-- snippet: solution/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2b -->
 Lines 42-45:
 
@@ -159,6 +164,8 @@ Lines 42-45:
 ```
 
 </details>
+
+Leave TODO 3 in `OrderActivitiesImpl.java` alone; it is the next Challenge.
 
 # Run it
 

@@ -49,12 +49,14 @@ no child is terminated and the order comes back fully packed.
 **Why it matters:** the order is only packed when every box is. A parent that
 returns early ships an empty order and throws the packing work away.
 
-# Where
+# Wait for every child (TODO 1)
+
+**Observe.** Open `PackWorkflowImpl.java` in the
+[button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
+(`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/childworkflows/PackWorkflowImpl.java TODO 1 -->
-Open `PackWorkflowImpl.java` in the [button label="Exercise" background="#444CE7"](tab-0)
-tab. Press `Ctrl+P` (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Read lines 25-30, the end of `pack`. You change them in **Change it**, below:
+Lines 25-30 are the end of `pack`, right after the fan-out loop:
 
 ```java
         // TODO 1 start
@@ -65,26 +67,23 @@ Read lines 25-30, the end of `pack`. You change them in **Change it**, below:
         // TODO 1 end
 ```
 
-`boxes` is the `List<Promise<String>>` the fan-out loop above filled, one
-`Promise` per child, in item order.
+**Learn.** `return List.of();` returns before any child has finished, and that
+is why the last Challenge's children were terminated. `boxes` is the
+`List<Promise<String>>` the fan-out loop filled, one `Promise` per child, in
+item order. `Promise.allOf(boxes)` is a `Promise` that is ready once every one
+of them is, so waiting on it waits for every child.
 
-**Look at** `return List.of();`. The parent returns before any child has
-finished, and that is why the last Challenge's children were terminated.
-TODO 1 makes the parent wait for every child and return their boxes.
-
-# Change it
+**Do.** Between the TODO 1 markers:
 
 - [ ] Wait for every child with `Promise.allOf(boxes)`.
 - [ ] Return each child's box, in item order, instead of `List.of()`.
 
-Change only the lines between `// TODO 1 start` and `// TODO 1 end`. Leave the
-fan-out loop as it is: it starts every child before you wait for any.
+Leave the fan-out loop as it is: it starts every child before you wait for any.
 
 <details>
 <summary>Hint</summary>
 
-`Promise.allOf` returns a `Promise` that is ready once every `Promise` in the
-list is. After that, each `get()` returns at once:
+After `Promise.allOf(...).get()`, each `get()` returns at once:
 
 ```java
 List<Promise<Integer>> sizes = ...;

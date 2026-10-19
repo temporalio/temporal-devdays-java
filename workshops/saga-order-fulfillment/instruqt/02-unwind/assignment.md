@@ -65,14 +65,15 @@ of them fails.
 put the stock back on the shelf, in that order. A refund service that is down
 must not also leave the stock locked.
 
-# Where
+# Run the undos (TODO 1)
 
-<!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 1 -->
-Open `OrderFulfillmentWorkflowImpl.java` in the
+**Observe.** Open `OrderFulfillmentWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
-Read lines 59-67, the two helpers `fulfill` uses to build the Saga and to
-unwind it. You change them in **Change it**, below:
+
+<!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 1 -->
+Lines 59-67 are the two helpers `fulfill` uses to build the Saga and to unwind
+it:
 
 ```java
     // TODO 1 start: run the undos newest first, and keep going when one fails
@@ -86,21 +87,21 @@ unwind it. You change them in **Change it**, below:
     // TODO 1 end
 ```
 
-`fulfill` calls `newSaga()` once at the start, registers an undo after each
-step with `saga.addCompensation(...)`, and calls `unwind(saga)` in its
-`catch (ActivityFailure e)` block, before it rethrows.
+**Learn.** `fulfill` calls `newSaga()` once at the start, registers an undo
+after each step with `saga.addCompensation(...)`, and calls `unwind(saga)` in
+its `catch (ActivityFailure e)` block, before it rethrows. But `unwind` is
+empty, so when a step fails nothing runs the undos. That is the run you watched
+in Challenge 1.
 
-**Look at** `unwind`. It is empty, so when a step fails, nothing runs the undos
-`fulfill` registered. That is the run you watched in Challenge 1.
+A Saga runs its undos newest first, one at a time, by default. By default it
+also stops at the first undo that fails, which would leave the older steps
+standing.
 
-# Change it
+**Do.** Between the TODO 1 markers:
 
 - [ ] In `unwind`, make the Saga run its compensations.
 - [ ] In `newSaga`, set the one option that keeps the Saga going when an undo
   fails. Leave it sequential: that is what runs the undos newest first.
-
-Change only the lines between `// TODO 1 start` and `// TODO 1 end`. Leave the
-other TODOs alone; they are the next Challenges.
 
 <details>
 <summary>Hint</summary>
@@ -138,6 +139,8 @@ Lines 59-69 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
 ```
 
 </details>
+
+Leave the other TODOs alone; they are the next Challenges.
 
 # Run it
 

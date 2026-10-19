@@ -51,7 +51,7 @@ follow the failure from the top to its real cause.
 **Why it matters:** every level you nest is one more hop between an alert on
 the top Workflow and the error that caused it.
 
-# Where
+# Read the code
 
 Nothing to change in this Challenge. Open `ChainWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. `ChainWorkflow`
