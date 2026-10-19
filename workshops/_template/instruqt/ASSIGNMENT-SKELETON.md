@@ -44,6 +44,21 @@ Refer to other Challenges only in "Leave the rest alone", in one line.
 
 **Why it matters:** <one line of business consequence.>
 
+<!-- First Challenge only: explain every tab, one line each, with its button.
+List exactly the tabs in `tabs:` above, in order. Delete this section in later
+Challenges. -->
+
+# Your tabs
+
+- [button label="Exercise" background="#444CE7"](tab-0) VS Code in the browser, open on this Workshop. You edit
+  the code under `exercise/`. It saves as you type.
+- [button label="Worker" background="#444CE7"](tab-1) a terminal in `exercise/`. Run `run-worker` here. It
+  restarts the Worker every time you save.
+- [button label="Client" background="#444CE7"](tab-2) a terminal in `exercise/`. Run `run-starter` here to start
+  a Workflow.
+- [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
+  <what this Workshop's learner will look at there.>
+
 # Where
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/<pkg>/<File>.java TODO N -->

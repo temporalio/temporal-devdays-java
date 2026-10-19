@@ -32,6 +32,9 @@ between repos or changing the Sandbox Image.
   PR. Fill in what the PR contains, mark the rest `Pending`, and run
   `bash scripts/check-readme-index.sh`. The README index check fails the PR
   otherwise.
+- **The first Challenge explains every tab.** A `# Your tabs` section lists
+  each tab in the Challenge's `tabs:`, with its button and one line on what it
+  is for, worded for this Workshop. Never just say the buttons are clickable.
 - New Workshops start from `workshops/_template/`. Sandbox Images build `FROM`
   the shared `sandbox-base/` image (ADR 0003).
 

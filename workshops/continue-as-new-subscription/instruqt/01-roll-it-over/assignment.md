@@ -66,7 +66,16 @@ add Continue-As-New so it rolls over when the Service suggests it, and finishes.
 a policy that renews every year, or an account, keeps appending to its history.
 Without Continue-As-New it is eventually terminated, mid-flight.
 
-The blue buttons are clickable. Each one jumps to a tab.
+# Your tabs
+
+- [button label="Exercise" background="#444CE7"](tab-0) VS Code in the browser, open on this Workshop. You edit
+  the code under `exercise/`. It saves as you type.
+- [button label="Worker" background="#444CE7"](tab-1) a terminal in `exercise/`. Run `run-worker` here. It
+  restarts the Worker every time you save.
+- [button label="Client" background="#444CE7"](tab-2) a terminal in `exercise/`. Run `run-starter` here to start
+  a Workflow.
+- [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
+  the subscription Workflow, its Event History, and each new run it continues as.
 
 # The limits
 

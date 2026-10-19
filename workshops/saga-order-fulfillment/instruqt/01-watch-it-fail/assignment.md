@@ -69,7 +69,16 @@ two steps.
 **Why it matters:** the customer has been charged for an order that will never
 ship, and the stock is locked away from everyone else.
 
-The blue buttons are clickable. Each one jumps to a tab.
+# Your tabs
+
+- [button label="Exercise" background="#444CE7"](tab-0) VS Code in the browser, open on this Workshop. You edit
+  the code under `exercise/`. It saves as you type.
+- [button label="Worker" background="#444CE7"](tab-1) a terminal in `exercise/`. Run `run-worker` here. It
+  restarts the Worker every time you save.
+- [button label="Client" background="#444CE7"](tab-2) a terminal in `exercise/`. Run `run-starter` here to start
+  a Workflow.
+- [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
+  every order Workflow, and each Activity it ran or undid, in its Event History.
 
 # Where the code lives
 

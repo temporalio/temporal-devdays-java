@@ -60,7 +60,16 @@ the two separate histories in the Temporal UI.
 **Why it matters:** a child is a full Workflow Execution. It can be found,
 retried and read on its own, apart from the order that started it.
 
-The blue buttons are clickable. Each one jumps to a tab.
+# Your tabs
+
+- [button label="Exercise" background="#444CE7"](tab-0) VS Code in the browser, open on this Workshop. You edit
+  the code under `exercise/`. It saves as you type.
+- [button label="Worker" background="#444CE7"](tab-1) a terminal in `exercise/`. Run `run-worker` here. It
+  restarts the Worker every time you save.
+- [button label="Client" background="#444CE7"](tab-2) a terminal in `exercise/`. Run `run-starter` here to start
+  a Workflow.
+- [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
+  every order Workflow and the child Workflows it started, each with its own Event History.
 
 # Where
 
