@@ -1,0 +1,20 @@
+#!/bin/bash
+# ABOUTME: Observe-only Check (ADR 0002). Passes once an order has failed in the
+# local dev server, which means the learner ran the Worker and the starter.
+set -uo pipefail
+fail() {
+    if command -v fail-message >/dev/null 2>&1; then fail-message "$1"; else echo "FAIL: $1" >&2; fi
+    exit 1
+}
+
+FAILED=$(temporal workflow count --address 127.0.0.1:7233 \
+    --query 'WorkflowType="OrderFulfillmentWorkflow" AND ExecutionStatus="Failed"' 2>/dev/null \
+    | grep -oE '[0-9]+' | head -1)
+
+if [ "${FAILED:-0}" -lt 1 ]; then
+    if ! pgrep -f "exec:java@worker" >/dev/null; then
+        fail "No failed order yet, and no Worker is running. Run run-worker in the Worker tab, then run-starter --fail-dispatch in the Client tab."
+    fi
+    fail "No failed order yet. In the Client tab, run: run-starter --fail-dispatch"
+fi
+echo "PASS: an order failed halfway"

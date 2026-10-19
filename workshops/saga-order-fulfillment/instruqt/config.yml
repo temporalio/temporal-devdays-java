@@ -1,0 +1,16 @@
+version: "3"
+containers:
+- name: workshop
+  # Pinned by digest, not :latest. A moving tag lets a sandbox boot a cached older
+  # image. Re-pin after every rebuild with:
+  #   docker buildx imagetools inspect ghcr.io/nadvolod/saga-java-sandbox:latest --format "{{.Manifest.Digest}}"
+  image: ghcr.io/nadvolod/saga-java-sandbox@sha256:60bd58a11ecd3cade50e8fa7f0c99972af52725346dcb0c6295c121d879af45b
+  shell: /bin/bash
+  # One Java Worker, a Temporal dev server, one code-server with the Java
+  # language server (~1 GB on its own), and Maven Checks.
+  memory: 6144
+  # Every port a tab points at MUST be listed here. Instruqt's proxy cannot reach
+  # an undeclared port, and the tab shows "Please wait" forever.
+  ports:
+  - 8233   # Temporal UI
+  - 8080   # code-server, the Exercise tab

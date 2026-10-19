@@ -1,0 +1,61 @@
+slug: saga-java
+id: ta3iyw36nypl
+title: The Saga Pattern (Java)
+teaser: An order reserves stock and charges a card, then fails. Watch nobody clean
+  up, then fix it one change at a time.
+description: |-
+  A distributed transaction has no rollback. When step three fails, steps one and
+  two have already happened. Stock is held, a card is charged, and something has
+  to undo them.
+
+  That is the Saga pattern: every forward step paired with an undo, run newest
+  first when anything fails. The Java SDK ships a `Saga` class that holds the
+  undos for you. You wire it in, choose how it behaves when an undo fails, and
+  learn the two rules no helper can enforce for you.
+
+  Four short Challenges, one change each:
+
+  1. Watch an order fail halfway with nothing undone.
+  2. Unwind: make the Saga run the undos, newest first, past a failing one.
+  3. Register each undo before its step, so a step that lands and still fails is reversed.
+  4. Make each undo safe to run when there is nothing to undo, and safe to run twice.
+
+  Every Check runs your code and tells you what is missing and where.
+
+  **Prerequisite:** Temporal Essentials. You should already know what a Workflow,
+  an Activity and a Worker are.
+icon: ""
+tags:
+- compensation
+- temporal
+- saga
+- java
+- patterns
+owner: temporal
+developers:
+- nikolay.advolodkin@temporal.io
+maintenance: true
+skipping_enabled: true
+idle_timeout: 3600
+timelimit: 3600
+lab_config:
+  extend_ttl: 900
+  sidebar_enabled: true
+  feedback_recap_enabled: true
+  feedback_tab_enabled: true
+  loadingMessages:
+  - Starting the Temporal dev server...
+  - Reserving stock you will have to release...
+  - Charging a card you will have to refund...
+  - Booking a courier who will not show up...
+  - Opening the code editor...
+  - Warming the Java language server...
+  - Preparing the Worker terminal...
+  - Loading the Temporal Web UI...
+  - Almost ready...
+  override_challenge_layout: true
+  hideStopButton: false
+  default_layout: AssignmentLeft
+  default_layout_sidebar_size: 33
+checksum: "18071337805361144684"
+enhanced_loading: false

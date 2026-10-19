@@ -1,0 +1,27 @@
+# Maven
+target/
+target-check/
+*.class
+dependency-reduced-pom.xml
+
+# Editors
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+
+# Workshop Skip backups (workshop-solve)
+*.bak
+
+# DevDays
+node_modules/
+.slidev/
+.DS_Store
+# Other sessions' git worktrees live here; never commit them.
+.claude/worktrees/
+
+# Claude Code
+.claude/settings.local.json

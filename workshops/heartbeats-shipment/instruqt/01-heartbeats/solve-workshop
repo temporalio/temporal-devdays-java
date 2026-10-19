@@ -1,0 +1,10 @@
+#!/bin/bash
+# ABOUTME: Skip for Challenge 1. Splices TODO 1a into ShipmentWorkflowImpl.java and
+# TODO 1b and 1c into ShipmentActivitiesImpl.java from solution/, keeping the
+# learner's own work everywhere else (the originals are saved as .bak).
+# run-worker restarts the Worker on the change by itself.
+set -euxo pipefail
+W=/root/workshop/heartbeats-shipment
+P=src/main/java/io/temporal/devdays/shipment
+workshop-solve "$W/exercise" "$W/solution" "$P/ShipmentWorkflowImpl.java" "TODO 1a"
+workshop-solve "$W/exercise" "$W/solution" "$P/ShipmentActivitiesImpl.java" "TODO 1b" "TODO 1c"

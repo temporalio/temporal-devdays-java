@@ -1,0 +1,20 @@
+name: README index
+
+# Every PR that adds a Deck or a Workshop adds its README row in the same PR
+# (AGENTS.md). This fails the PR when a decks/<slug>/ or workshops/<slug>/
+# folder has no row in the README Workshops table.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Every Deck and Workshop has a README row
+        run: bash scripts/check-readme-index.sh

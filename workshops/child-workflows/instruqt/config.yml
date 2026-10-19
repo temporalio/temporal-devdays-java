@@ -1,0 +1,16 @@
+version: "3"
+containers:
+- name: workshop
+  # Pinned by digest, not :latest. A moving tag lets a sandbox boot a cached older
+  # image. Re-pin after every rebuild with:
+  #   docker buildx imagetools inspect ghcr.io/nadvolod/child-workflows-java-sandbox:latest --format "{{.Manifest.Digest}}"
+  image: ghcr.io/nadvolod/child-workflows-java-sandbox@sha256:c6fb48d03356af2de9920103b99a650d2749a1cd93b5e28778ff8ffce14779e2
+  shell: /bin/bash
+  # One Java Worker, a Temporal dev server, one code-server with the Java
+  # language server (~1 GB on its own), and Maven Checks.
+  memory: 6144
+  # Every port a tab points at MUST be listed here. Instruqt's proxy cannot reach
+  # an undeclared port, and the tab shows "Please wait" forever.
+  ports:
+  - 8233   # Temporal UI
+  - 8080   # code-server, the Exercise tab

@@ -1,0 +1,8 @@
+#!/bin/bash
+# ABOUTME: Skip for Challenge 4. Splices only "TODO 3a" "TODO 3b" from solution/ into the
+# learner's OrderActivitiesImpl.java, keeping their own work everywhere else (the original is saved
+# as OrderActivitiesImpl.java.bak). run-worker restarts the Worker on the change by itself.
+set -euxo pipefail
+W=/root/workshop/saga-order-fulfillment
+workshop-solve "$W/exercise" "$W/solution" \
+    src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java "TODO 3a" "TODO 3b"

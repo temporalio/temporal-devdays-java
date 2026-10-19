@@ -1,0 +1,8 @@
+#!/bin/bash
+# ABOUTME: Skip for Challenge 1. Splices only "TODO 1" from solution/ into the
+# learner's exercise, keeping their own work everywhere else (the original is
+# saved as .bak). run-worker restarts the Worker on the change by itself.
+set -euxo pipefail
+W=/root/workshop/workshop-slug
+workshop-solve "$W/exercise" "$W/solution" \
+    src/main/java/io/temporal/devdays/greeting/GreetingWorkflowImpl.java "TODO 1"
