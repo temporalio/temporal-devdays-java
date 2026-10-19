@@ -108,14 +108,22 @@ tab (click refresh if it isn't listed) and look at **Pending Activities**:
 attempt 1, still **Started**, and no Heartbeat. Temporal has no idea the Worker
 is gone.
 
+Wait about 20 seconds and look again. Attempt 1 has timed out, with
+`activity StartToClose timeout` as its last failure, and the Activity is now
+on **attempt 2, Scheduled**. It stays on attempt 2 for as long as no Worker is
+running. An attempt only counts against the 10 when it fails, and it can only
+fail once a Worker has started it. Until then it waits in the Task Queue.
+**Temporal does not burn retries while your Workers are down.**
+
 Start a replacement in the [button label="Worker" background="#444CE7"](tab-1) tab:
 
 ```bash,run
 run-worker
 ```
 
-It polls and packs nothing. About 18 seconds after the crash, once the first
-attempt's 20 seconds run out, it prints:
+It picks up attempt 2 as soon as it starts polling. If you start it before
+attempt 1's 20 seconds have run out, it packs nothing until they do. Either
+way it prints:
 
 ```bash,nocopy
 17:16:19 INFO ShipmentActivitiesImpl - packing shipment-demo, attempt 2, starting at item 0
