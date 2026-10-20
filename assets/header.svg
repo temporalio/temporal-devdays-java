@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-labelledby="title desc">
   <title id="title">DevDays Java</title>
-  <desc id="desc">Ziggy the tardigrade bobs beside a steaming cup of coffee, next to the words DevDays Java.</desc>
+  <desc id="desc">A steaming cup of coffee next to the words DevDays Java.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0B0B1A"/>
@@ -20,10 +20,6 @@
       <stop offset="0.5" stop-color="#F472B6"/>
       <stop offset="1" stop-color="#FDBA74"/>
     </linearGradient>
-    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#D9CCFF"/>
-      <stop offset="1" stop-color="#9F86FF"/>
-    </linearGradient>
     <linearGradient id="cup" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#DCD6F7"/>
@@ -35,12 +31,6 @@
   </defs>
 
   <style>
-    .bob     { animation: bob 3.2s ease-in-out infinite; }
-    .shadow  { animation: shadow 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-    .eye     { animation: blink 4.8s infinite; transform-box: fill-box; transform-origin: center; }
-    .leg     { transform-box: fill-box; transform-origin: 50% 0%; animation: wiggle 0.9s ease-in-out infinite alternate; }
-    .leg.b   { animation-delay: -0.45s; }
-    .wave    { transform-box: fill-box; transform-origin: 50% 90%; animation: wave 1.6s ease-in-out infinite; }
     .steam   { animation: steam 3s ease-in-out infinite; opacity: 0; }
     .steam.s2 { animation-delay: -1s; }
     .steam.s3 { animation-delay: -2s; }
@@ -49,11 +39,6 @@
     .spark.t3 { animation-delay: -1.6s; }
     .drift   { animation: drift 14s ease-in-out infinite alternate; }
 
-    @keyframes bob     { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
-    @keyframes shadow  { 0%, 100% { transform: scaleX(1); opacity: .45; } 50% { transform: scaleX(.86); opacity: .28; } }
-    @keyframes blink   { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.08); } }
-    @keyframes wiggle  { from { transform: rotate(-9deg); } to { transform: rotate(9deg); } }
-    @keyframes wave    { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(18deg); } }
     @keyframes steam   { 0% { opacity: 0; transform: translateY(8px); } 30% { opacity: .85; } 100% { opacity: 0; transform: translateY(-26px); } }
     @keyframes twinkle { 0%, 100% { transform: scale(.4); opacity: .2; } 50% { transform: scale(1); opacity: 1; } }
     @keyframes drift   { from { transform: translate(0, 0); } to { transform: translate(-40px, 18px); } }
@@ -102,12 +87,11 @@
     <path class="spark t2" d="M700 220 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z" fill="#99F6E4"/>
   </g>
 
-  <!-- Ground shadows -->
-  <ellipse class="shadow" cx="918" cy="292" rx="118" ry="11" fill="#000000"/>
-  <ellipse cx="1062" cy="292" rx="38" ry="7" fill="#000000" opacity=".4"/>
+  <!-- Ground shadow -->
+  <ellipse cx="930" cy="300" rx="72" ry="10" fill="#000000" opacity=".4"/>
 
-  <!-- Coffee cup -->
-  <g>
+  <!-- Coffee cup, centred in the glow -->
+  <g transform="translate(930 200) scale(1.6) translate(-1064 -228)">
     <path class="steam"    d="M1050 196 c-8 -10 8 -16 0 -28" fill="none" stroke="#E9E5FF" stroke-width="4" stroke-linecap="round"/>
     <path class="steam s2" d="M1064 194 c-8 -10 8 -16 0 -28" fill="none" stroke="#E9E5FF" stroke-width="4" stroke-linecap="round"/>
     <path class="steam s3" d="M1078 196 c-8 -10 8 -16 0 -28" fill="none" stroke="#E9E5FF" stroke-width="4" stroke-linecap="round"/>
@@ -118,65 +102,4 @@
     <path d="M1044 258 q20 -9 40 0" fill="none" stroke="#F472B6" stroke-width="4" stroke-linecap="round"/>
   </g>
 
-  <!-- Ziggy the tardigrade -->
-  <g class="bob">
-    <!-- back legs (behind body) -->
-    <g fill="#8B72F0" stroke="#5B45C9" stroke-width="2.5">
-      <g class="leg b"><rect x="828" y="244" width="24" height="34" rx="12"/></g>
-      <g class="leg"><rect x="880" y="250" width="24" height="32" rx="12"/></g>
-      <g class="leg b"><rect x="932" y="250" width="24" height="32" rx="12"/></g>
-      <g class="leg"><rect x="984" y="244" width="24" height="34" rx="12"/></g>
-    </g>
-
-    <!-- body: soft segmented barrel -->
-    <path d="M806 214 c0 -58 52 -92 116 -92 c66 0 108 34 108 90 c0 46 -40 64 -108 64 c-72 0 -116 -16 -116 -62z" fill="url(#body)" stroke="#5B45C9" stroke-width="3"/>
-    <g fill="none" stroke="#7C63E8" stroke-width="3" stroke-linecap="round" opacity=".55">
-      <path d="M880 130 q-12 72 6 144"/>
-      <path d="M936 124 q-10 78 4 152"/>
-      <path d="M988 140 q-6 64 4 128"/>
-    </g>
-    <!-- belly highlight and spots -->
-    <ellipse cx="900" cy="160" rx="70" ry="20" fill="#FFFFFF" opacity=".22"/>
-    <g fill="#FFFFFF" opacity=".35">
-      <circle cx="960" cy="168" r="5"/>
-      <circle cx="1002" cy="190" r="4"/>
-      <circle cx="914" cy="150" r="3.5"/>
-    </g>
-
-    <!-- front legs (in front of body) -->
-    <g fill="#A992FF" stroke="#5B45C9" stroke-width="2.5">
-      <g class="leg"><rect x="846" y="252" width="26" height="36" rx="13"/></g>
-      <g class="leg b"><rect x="906" y="258" width="26" height="34" rx="13"/></g>
-      <g class="leg"><rect x="962" y="252" width="26" height="36" rx="13"/></g>
-    </g>
-    <g fill="#5B45C9">
-      <circle cx="852" cy="286" r="2.5"/><circle cx="859" cy="288" r="2.5"/><circle cx="866" cy="286" r="2.5"/>
-      <circle cx="912" cy="290" r="2.5"/><circle cx="919" cy="292" r="2.5"/><circle cx="926" cy="290" r="2.5"/>
-      <circle cx="968" cy="286" r="2.5"/><circle cx="975" cy="288" r="2.5"/><circle cx="982" cy="286" r="2.5"/>
-    </g>
-
-    <!-- waving arm, toward the cup -->
-    <g class="wave">
-      <rect x="1014" y="168" width="24" height="46" rx="12" fill="#A992FF" stroke="#5B45C9" stroke-width="2.5" transform="rotate(-38 1026 210)"/>
-    </g>
-
-    <!-- head -->
-    <circle cx="812" cy="196" r="56" fill="url(#body)" stroke="#5B45C9" stroke-width="3"/>
-    <ellipse cx="796" cy="166" rx="24" ry="11" fill="#FFFFFF" opacity=".3"/>
-    <!-- eyes -->
-    <g class="eye">
-      <ellipse cx="792" cy="190" rx="11" ry="13" fill="#1E1B4B"/>
-      <circle cx="796" cy="185" r="4" fill="#FFFFFF"/>
-    </g>
-    <g class="eye">
-      <ellipse cx="832" cy="190" rx="11" ry="13" fill="#1E1B4B"/>
-      <circle cx="836" cy="185" r="4" fill="#FFFFFF"/>
-    </g>
-    <!-- cheeks -->
-    <ellipse cx="776" cy="212" rx="9" ry="5.5" fill="#F472B6" opacity=".55"/>
-    <ellipse cx="850" cy="212" rx="9" ry="5.5" fill="#F472B6" opacity=".55"/>
-    <!-- snout: the tardigrade's little tube mouth -->
-    <ellipse cx="812" cy="222" rx="13" ry="10" fill="#C9B9FF" stroke="#5B45C9" stroke-width="2.5"/>
-    <ellipse cx="812" cy="223" rx="5" ry="4" fill="#3B2A8F"/>
-  </g>
 </svg>

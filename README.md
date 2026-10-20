@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/header.svg" alt="DevDays Java: Ziggy the tardigrade next to a steaming cup of coffee" width="100%">
+  <img src="assets/header.svg" alt="DevDays Java: a steaming cup of coffee" width="100%">
 </p>
 
 # temporal-devdays-java
