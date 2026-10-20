@@ -1,7 +1,7 @@
 # The Saga Pattern (Java)
 
 **Level:** Advanced. Requires Temporal Essentials.
-**Duration:** 45 minutes: about 20 minutes of Deck, then the lab.
+**Duration:** 25 minutes of lab, after about 20 minutes of Deck.
 **Track:** `saga-java` (not yet published) ·
 **Deck:** Pending
 

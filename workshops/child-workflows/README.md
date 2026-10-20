@@ -1,7 +1,7 @@
 # Child Workflows (Java)
 
 **Level:** Foundations. Requires Temporal Essentials.
-**Duration:** 10 minutes of lab, after the Child Workflows section of the Deck.
+**Duration:** 15 minutes of lab, after the Child Workflows section of the Deck.
 **Track:** `child-workflows-java` (not yet published) ·
 **Deck:** Pending
 

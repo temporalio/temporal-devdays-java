@@ -13,8 +13,8 @@ All created via code. Use or repurpose the content to fit your next Dev Day!
 
 | Workshop | Level | Stack | Deck | Code + Track | Lab | Duration | Author | Model | Deck cost ($) | Track cost ($) |
 |---|---|---|---|---|---|--:|---|---|--:|--:|
-| The Saga Pattern | Advanced | Java · compensation | Pending | [`workshops/saga-order-fulfillment/`](workshops/saga-order-fulfillment/) | [`saga-java`](https://play.instruqt.com/temporal/tracks/saga-java) | 45 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.73 |
-| Child Workflows | Foundations | Java · child workflows | Pending | [`workshops/child-workflows/`](workshops/child-workflows/) | [`child-workflows-java`](https://play.instruqt.com/temporal/tracks/child-workflows-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 3.98 |
+| The Saga Pattern | Advanced | Java · compensation | Pending | [`workshops/saga-order-fulfillment/`](workshops/saga-order-fulfillment/) | [`saga-java`](https://play.instruqt.com/temporal/tracks/saga-java) | 25 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.73 |
+| Child Workflows | Foundations | Java · child workflows | Pending | [`workshops/child-workflows/`](workshops/child-workflows/) | [`child-workflows-java`](https://play.instruqt.com/temporal/tracks/child-workflows-java) | 15 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 3.98 |
 | Continue-As-New | Advanced | Java · event history | Pending | [`workshops/continue-as-new-subscription/`](workshops/continue-as-new-subscription/) | [`continue-as-new-java`](https://play.instruqt.com/temporal/tracks/continue-as-new-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 2.86 |
 | Activity Heartbeats | Advanced | Java · activities | Pending | [`workshops/heartbeats-shipment/`](workshops/heartbeats-shipment/) | [`heartbeats-java`](https://play.instruqt.com/temporal/tracks/heartbeats-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.45 |
 
