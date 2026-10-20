@@ -4,6 +4,7 @@
 #   1. Every assignment snippet matches its code (scripts/check-snippets.py).
 #   2. One SDK per Workshop (AGENTS.md): no Workshop, Track or Deck names another
 #      Temporal SDK language.
+#   3. Every Challenge ends by asking for feedback (AGENTS.md).
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FAIL=0
@@ -23,5 +24,18 @@ if [ -n "$HITS" ]; then
     FAIL=1
 else
     echo "[ OK ] no other SDK language named in Workshops or Decks"
+fi
+
+MISSING=()
+for f in "$ROOT"/workshops/*/instruqt/*/assignment.md; do
+    [ -e "$f" ] || continue
+    tail -n 4 "$f" | grep -q 'Please share your feedback' || MISSING+=("${f#$ROOT/}")
+done
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "[FAIL] Challenge does not end by asking for feedback (copy the block from the assignment skeleton):"
+    printf '       - %s\n' "${MISSING[@]}"
+    FAIL=1
+else
+    echo "[ OK ] every Challenge ends by asking for feedback"
 fi
 exit $FAIL

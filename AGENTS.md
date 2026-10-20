@@ -41,6 +41,9 @@ between repos or changing the Sandbox Image.
   edit as a checkbox with its own hint and solution (Do). Never a "Where"
   section of snippets followed by a separate "Change it" list. Challenges that
   change no code say so in their heading ("Read the code").
+- **Every Challenge ends by asking for feedback.** The last thing in each
+  assignment is the feedback block from the assignment skeleton, pointing at
+  the **Feedback** tab. `scripts/verify-content.sh` fails otherwise.
 - New Workshops start from `workshops/_template/`. Sandbox Images build `FROM`
   the shared `sandbox-base/` image (ADR 0003).
 

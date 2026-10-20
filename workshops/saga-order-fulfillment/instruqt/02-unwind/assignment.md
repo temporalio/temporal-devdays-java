@@ -196,3 +196,9 @@ Failed** event in the Event History is the record a human has to act on.
 Click **Check**. It passes when a failed courier leads to refund, then release,
 and when one failing undo does not stop the next. If it fails, the message says
 which of those is still missing.
+
+---
+
+**Please share your feedback so we can make better content for you.** The
+**Feedback** tab takes a few seconds, and it is the only way we find out which
+parts of this landed.

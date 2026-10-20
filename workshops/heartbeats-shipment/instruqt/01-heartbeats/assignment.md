@@ -341,3 +341,9 @@ prints `interrupted at item N`: the next `heartbeat()` call throws an
 `ActivityCompletionException`. The Client tab says the shipment ended Canceled.
 An Activity that never Heartbeats never learns it was cancelled, and keeps
 working.
+
+---
+
+**Please share your feedback so we can make better content for you.** The
+**Feedback** tab takes a few seconds, and it is the only way we find out which
+parts of this landed.

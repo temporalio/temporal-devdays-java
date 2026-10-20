@@ -240,3 +240,9 @@ Before you ship this pattern:
 - If the Workflow has Signal or Update handlers, wait for them to finish first,
   with `Workflow.await(Workflow::isEveryHandlerFinished)`, so a rollover
   does not cut one off halfway.
+
+---
+
+**Please share your feedback so we can make better content for you.** The
+**Feedback** tab takes a few seconds, and it is the only way we find out which
+parts of this landed.

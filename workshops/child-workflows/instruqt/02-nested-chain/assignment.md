@@ -123,3 +123,9 @@ the code look tidier.
 
 Click **Check**. It passes once a five-level chain has failed in the Temporal
 dev server. If it fails, the message says what to run.
+
+---
+
+**Please share your feedback so we can make better content for you.** The
+**Feedback** tab takes a few seconds, and it is the only way we find out which
+parts of this landed.

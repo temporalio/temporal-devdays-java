@@ -168,3 +168,9 @@ and are not?
 
 Click **Check**. It passes once a failed order is in the Temporal UI. Next you
 make the undos run.
+
+---
+
+**Please share your feedback so we can make better content for you.** The
+**Feedback** tab takes a few seconds, and it is the only way we find out which
+parts of this landed.

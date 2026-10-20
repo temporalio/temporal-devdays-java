@@ -192,3 +192,9 @@ The refund is back. The newest Workflow in the
 Click **Check**. It passes when a charge that lands and then fails is refunded,
 and a reservation that lands and then fails is released. If it fails, the
 message names TODO 2a or 2b.
+
+---
+
+**Please share your feedback so we can make better content for you.** The
+**Feedback** tab takes a few seconds, and it is the only way we find out which
+parts of this landed.
