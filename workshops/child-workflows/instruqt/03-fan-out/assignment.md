@@ -55,7 +55,8 @@ running. By default it takes them down with it, and the work is lost.
 # Read the code
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/childworkflows/PackWorkflowImpl.java TODO 1 before=12 -->
-Nothing to change yet. Open `PackWorkflowImpl.java` in the
+**This code is for review only.** It ends with TODO 1: don't do it yet, it is
+the next Challenge. Open `PackWorkflowImpl.java` in the
 [button label="Exercise" background="#444CE7"](tab-0) tab. Press `Ctrl+P`
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
 Read lines 13-30, the fan-out:
@@ -86,8 +87,6 @@ box straight away. `Workflow.getWorkflowExecution(child).get()` waits only
 until the child has **started**, so the loop starts all five back to back.
 Each child sleeps 3 seconds and returns a box. Then the parent reaches TODO 1
 and returns an empty list.
-
-Leave TODO 1 as it is for now. It is the next Challenge.
 
 # Run it
 
