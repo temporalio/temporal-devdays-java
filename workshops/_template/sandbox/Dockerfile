@@ -13,7 +13,7 @@
 
 # Pinned by digest, not :latest. Re-pin after every base rebuild with:
 #   docker buildx imagetools inspect ghcr.io/nadvolod/devdays-java-sandbox-base:latest --format "{{.Manifest.Digest}}"
-ARG BASE=ghcr.io/nadvolod/devdays-java-sandbox-base@sha256:d0ac271ce50f195b9e55059a57dd5c5e8da831e43c26d944e240e224ec8a6714
+ARG BASE=ghcr.io/nadvolod/devdays-java-sandbox-base@sha256:12af4f4dc917d4c2c6febb89328bdffad3a5f4ee7677413d51c33c5d63c25c05
 FROM ${BASE}
 
 # --- Bake the workshop source -------------------------------------------------

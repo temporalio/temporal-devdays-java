@@ -4,7 +4,7 @@ containers:
   # Pinned by digest, not :latest. A moving tag lets a sandbox boot a cached older
   # image. Re-pin after every rebuild with:
   #   docker buildx imagetools inspect ghcr.io/nadvolod/heartbeats-java-sandbox:latest --format "{{.Manifest.Digest}}"
-  image: ghcr.io/nadvolod/heartbeats-java-sandbox@sha256:e9faff2d8b5b0793eab6bdb77203708381641bcac2ecd8d94be210fc01d2d52d
+  image: ghcr.io/nadvolod/heartbeats-java-sandbox@sha256:60b3de2a8cd2e08daa9758adb9f9f157d50b9a6f8bdb075acd86a2f7d625fd7a
   shell: /bin/bash
   # One Java Worker (crashed on purpose), a Temporal dev server, one code-server
   # with the Java language server (~1 GB on its own), and Maven Checks.

@@ -48,7 +48,9 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version ${CODE_SE
 
 # One editor instance rooted at the Workshop folder. security.workspace.trust.enabled
 # MUST be false: with it on, code-server shows a blank page until the folder is
-# trusted. files.autoSave is load-bearing: the assignments say the editor saves as
+# trusted. The secondary side bar (the Chat pane on the right) opens by default
+# and learners had to close it by hand, so it starts hidden and the Chat view is
+# off. files.autoSave is load-bearing: the assignments say the editor saves as
 # you type, and run-worker restarts the Worker on save. target-check/ is the
 # Check's private build folder (workshop-check), hidden with target/.
 RUN mkdir -p /root/.cs-workshop/User && printf '%s\n' \
@@ -57,6 +59,8 @@ RUN mkdir -p /root/.cs-workshop/User && printf '%s\n' \
       '    "workbench.colorTheme": "Default Dark Modern",' \
       '    "workbench.startupEditor": "none",' \
       '    "workbench.editor.enablePreview": false,' \
+      '    "workbench.secondarySideBar.defaultVisibility": "hidden",' \
+      '    "chat.disableAIFeatures": true,' \
       '    "editor.fontSize": 14,' \
       '    "editor.tabSize": 4,' \
       '    "editor.minimap.enabled": false,' \
