@@ -1,0 +1,25 @@
+#!/bin/bash
+# ABOUTME: Solve for Challenge 1. Places one failing order from exercise/ so the
+# Check (and `instruqt track test`) sees a Failed Workflow. Never edits code.
+# Starts a Worker in the background only if none is running, and stops it after.
+set -euxo pipefail
+cd /root/workshop/saga-order-fulfillment/exercise
+LOG=/tmp/solve-saga-worker.log
+
+STARTED=0
+if ! pgrep -f "exec:java@worker" >/dev/null; then
+    nohup mvn -B -q -o compile exec:java@worker > "$LOG" 2>&1 &
+    STARTED=1
+    for i in $(seq 1 120); do
+        grep -q "Fulfillment Worker polling" "$LOG" 2>/dev/null && break
+        sleep 1
+    done
+fi
+
+timeout 180 run-starter --fail-dispatch
+
+if [ "$STARTED" -eq 1 ]; then
+    pkill -f "exec:java@worker" || true
+    # Wait for it to exit, so the next Skip does not mistake it for a live Worker.
+    for i in $(seq 1 60); do pgrep -f "exec:java@worker" >/dev/null || break; sleep 0.5; done
+fi

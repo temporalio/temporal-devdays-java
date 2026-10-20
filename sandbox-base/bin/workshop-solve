@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Finish named TODOs in the Exercise by copying them from the Solution.
+
+    workshop-solve <exercise-dir> <solution-dir> <file> "TODO 2a" ["TODO 2b" ...]
+
+Replaces the lines between `// TODO N start` and `// TODO N end` in
+<exercise-dir>/<file> with the same region from <solution-dir>/<file>, and
+nothing else, so a learner who skips one Challenge keeps their own work on every
+other TODO. The learner's file is kept as <file>.bak the first time. <file> is
+relative to the tree, e.g. src/main/java/io/temporal/devdays/saga/OrderWorkflowImpl.java.
+
+A Challenge's solve-workshop uses it so Skip leaves the next Challenge runnable
+(ADR 0002). It only splices; it never overwrites a whole file.
+"""
+
+import re
+import shutil
+import sys
+from pathlib import Path
+
+
+def bounds(lines: list[str], todo: str, path: Path) -> tuple[int, int]:
+    start = next((i for i, l in enumerate(lines) if re.search(rf"//\s*{todo} start\b", l)), None)
+    end = next((i for i, l in enumerate(lines) if re.search(rf"//\s*{todo} end\b", l)), None)
+    if start is None or end is None or end < start:
+        sys.exit(f"workshop-solve: {path} has no '// {todo} start' / '// {todo} end' pair")
+    return start, end
+
+
+def main() -> None:
+    if len(sys.argv) < 5:
+        sys.exit(__doc__)
+    exercise, solution, rel, todos = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4:]
+    target, source = exercise / rel, solution / rel
+    lines = target.read_text().splitlines(keepends=True)
+    ref = source.read_text().splitlines(keepends=True)
+    for todo in todos:
+        s, e = bounds(lines, todo, target)
+        rs, re_ = bounds(ref, todo, source)
+        lines[s : e + 1] = ref[rs : re_ + 1]
+    backup = target.with_name(target.name + ".bak")
+    if not backup.exists():
+        shutil.copy2(target, backup)
+    target.write_text("".join(lines))
+    print(f"workshop-solve: finished {', '.join(todos)} in {target}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+#!/bin/bash
+# ABOUTME: Runs the Worker of the Maven project in the current folder, and
+# recompiles and restarts it on every save, so "save and the Worker reloads"
+# holds in the lab. Ctrl+C stops it.
+#
+#   cd /root/workshop/<slug>/exercise && run-worker
+set -uo pipefail
+[ -f pom.xml ] || { echo "run-worker: no pom.xml here. cd into the exercise folder first." >&2; exit 1; }
+exec watchexec --restart --stop-signal SIGTERM --debounce 500ms \
+    --watch src/main --watch pom.xml --exts java,xml,properties \
+    -- mvn -B -q ${WORKSHOP_MVN_FLAGS--o} -Dstyle.color=always compile exec:java@worker

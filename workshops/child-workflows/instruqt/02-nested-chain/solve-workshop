@@ -1,0 +1,25 @@
+#!/bin/bash
+# ABOUTME: Skip for Challenge 2. Runs `run-starter chain --fail` from
+# exercise/ so the Check (and `instruqt track test`) sees the outcome,
+# starting a Worker first if none is running. Never edits code.
+source /root/.bashrc 2>/dev/null || true
+set -euxo pipefail
+cd /root/workshop/child-workflows/exercise
+
+STARTED=0
+if ! pgrep -f "exec:java@worker" >/dev/null; then
+    nohup mvn -B -q -o compile exec:java@worker > /tmp/solve-child-worker.log 2>&1 &
+    STARTED=1
+    for i in $(seq 1 120); do
+        grep -q "polling" /tmp/solve-child-worker.log 2>/dev/null && break
+        sleep 1
+    done
+fi
+
+timeout 180 run-starter chain --fail
+
+if [ "$STARTED" -eq 1 ]; then
+    pkill -f "exec:java@worker" || true
+    # Wait for it to exit, so the next Skip does not mistake it for a live Worker.
+    for i in $(seq 1 60); do pgrep -f "exec:java@worker" >/dev/null || break; sleep 0.5; done
+fi

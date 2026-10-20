@@ -1,0 +1,8 @@
+#!/bin/bash
+# ABOUTME: Compiles and runs the starter of the Maven project in the current
+# folder, passing every argument through.
+#
+#   run-starter --fail-dispatch
+set -uo pipefail
+[ -f pom.xml ] || { echo "run-starter: no pom.xml here. cd into the exercise folder first." >&2; exit 1; }
+exec mvn -B -q ${WORKSHOP_MVN_FLAGS--o} -Dstyle.color=always compile exec:java@starter -Dexec.args="$*"

@@ -1,0 +1,7 @@
+#!/bin/bash
+# ABOUTME: Track-level cleanup. Leaves no Worker holding the Task Queue.
+# One pkill per pattern: `pkill -f "a|b"` is a GNU-ism that silently kills
+# nothing on macOS.
+pkill -f watchexec 2>/dev/null || true
+pkill -f "exec:java@worker" 2>/dev/null || true
+echo "Child Workflows track cleanup: OK"

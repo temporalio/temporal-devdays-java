@@ -1,0 +1,37 @@
+slug: <track-slug>
+title: <Workshop> (Java)
+teaser: <One sentence.>
+description: |-
+  <What breaks, and what the learner changes to fix it.>
+
+  <Numbered list of the Challenges, one change each.>
+
+  Every Check runs your code and tells you what is missing and where.
+icon: ""
+tags:
+- java
+- temporal
+owner: temporal
+developers:
+- nikolay.advolodkin@temporal.io
+maintenance: false
+skipping_enabled: true
+idle_timeout: 3600
+timelimit: 1800
+lab_config:
+  extend_ttl: 900
+  sidebar_enabled: true
+  feedback_recap_enabled: true
+  feedback_tab_enabled: true
+  loadingMessages:
+  - Starting the Temporal dev server...
+  - Opening the code editor...
+  - Warming the Java language server...
+  - Preparing the Worker terminal...
+  - Loading the Temporal Web UI...
+  - Almost ready...
+  override_challenge_layout: true
+  hideStopButton: false
+  default_layout: AssignmentLeft
+  default_layout_sidebar_size: 33
+enhanced_loading: false

@@ -1,0 +1,98 @@
+#!/bin/bash
+# ABOUTME: Gated Check for one Challenge (ADR 0002). Fails incomplete work with a
+# message that names the file and the TODO.
+#
+#   workshop-check <exercise-dir> <challenge-number>
+#
+# Baked into the Sandbox base image at /usr/local/bin. A Challenge's
+# check-workshop is one line: `exec workshop-check /root/workshop/<slug>/exercise 2`.
+#
+# In order, stopping at the first failure:
+#   1. the Exercise compiles, main and test, so a completed step never leaves the
+#      tree broken;
+#   2. the tests tagged challenge1..challengeN pass, earliest Challenge first;
+#   3. the first failing test's assertion message is what the learner sees.
+#
+# Builds into target-check/, not target/, so a Check never races the Worker that
+# run-worker is recompiling into target/ at the same moment.
+set -uo pipefail
+
+DIR="${1:?usage: workshop-check <exercise-dir> <challenge-number>}"
+N="${2:?usage: workshop-check <exercise-dir> <challenge-number>}"
+LOG="$(mktemp "${TMPDIR:-/tmp}/workshop-check.XXXXXX")"
+trap 'rm -f "$LOG"' EXIT
+
+# fail-message is Instruqt's helper for the text shown on a failed Check. Fall
+# back to stderr so the script also works in a local terminal.
+fail() {
+    if command -v fail-message >/dev/null 2>&1; then
+        fail-message "$1"
+    else
+        echo "FAIL: $1" >&2
+    fi
+    exit 1
+}
+
+cd "$DIR" || fail "The Exercise folder $DIR is missing."
+
+# -o (offline) by default: the Sandbox Image pre-warms ~/.m2, and a lab must not
+# depend on Maven Central. Set WORKSHOP_MVN_FLAGS= to allow downloads locally.
+MVN=(mvn -B -q ${WORKSHOP_MVN_FLAGS--o} -Dbuild.dir=target-check -Dstyle.color=never)
+BUILD=target-check
+
+# 1. Compile. javac names the file and line; show the first error only.
+if ! "${MVN[@]}" test-compile >"$LOG" 2>&1; then
+    ERR="$(grep -m1 -E '^\[ERROR\] .*\.java:\[[0-9]+' "$LOG" \
+        | sed -E 's#^\[ERROR\] .*/([^/]+\.java):\[([0-9]+),[0-9]+\] #\1 line \2: #')"
+    fail "Java can't compile your code yet. ${ERR:-$(grep -m1 '^\[ERROR\]' "$LOG" | sed 's/^\[ERROR\] //')}"
+fi
+
+# 2. Tests for this Challenge and every earlier one, as a JUnit tag expression.
+EXPR="$(seq 1 "$N" | sed 's/^/challenge/' | paste -sd'|' -)"
+rm -rf "$BUILD/surefire-reports"
+# `timeout` is coreutils; a local macOS run may not have it.
+TIMEOUT=(); command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 180)
+${TIMEOUT[@]+"${TIMEOUT[@]}"} "${MVN[@]}" surefire:test -Dgroups="$EXPR" \
+    -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false >"$LOG" 2>&1
+STATUS=$?
+
+if [ "$STATUS" -eq 124 ]; then
+    fail "The tests timed out. A Workflow may be waiting on something that never happens. Check the last change you made."
+fi
+
+# 3. Read the JUnit XML: count the tests, and take the first failure's message,
+#    written for learners in the test itself.
+RESULT="$(python3 - "$BUILD/surefire-reports" <<'PY'
+import sys, pathlib, xml.etree.ElementTree as ET
+total, first = 0, None
+for f in sorted(pathlib.Path(sys.argv[1]).glob("TEST-*.xml")):
+    try:
+        root = ET.parse(f).getroot()
+    except Exception:
+        continue
+    for case in root.iter("testcase"):
+        total += 1
+        for tag in ("failure", "error"):
+            node = case.find(tag)
+            if node is None or first is not None:
+                continue
+            msg = (node.get("message") or "").strip()
+            msg = msg.split(" ==> ")[0]
+            if not msg:
+                msg = f"{node.get('type', 'an exception')} in {case.get('name', 'a test')}"
+            first = msg.splitlines()[0]
+print(total)
+print(first or "")
+PY
+)"
+TOTAL="$(echo "$RESULT" | head -1)"
+MSG="$(echo "$RESULT" | sed -n 2p)"
+
+if [ "$STATUS" -eq 0 ] && [ "${TOTAL:-0}" -gt 0 ]; then
+    echo "PASS: Challenge $N"
+    exit 0
+fi
+if [ "${TOTAL:-0}" -eq 0 ] && [ "$STATUS" -eq 0 ]; then
+    fail "No tests are tagged for Challenge $N. This is a Track bug, not your code: tell the instructor."
+fi
+fail "${MSG:-The tests failed. Run 'mvn -q test -Dgroups=challenge$N' in the Worker tab to see why.}"

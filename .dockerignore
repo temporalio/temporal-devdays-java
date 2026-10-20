@@ -1,0 +1,4 @@
+**/target
+**/target-check
+**/*.bak
+.git
