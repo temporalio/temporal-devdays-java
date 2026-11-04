@@ -5,11 +5,12 @@
   Pair it with the Workflow code block whose highlight ranges follow STEPS
   below, one range per step, starting with `all` on click 0:
 
-    ```ts {all|1-4|7|8|10|11|13|15-17|19-21|19-21|28}
+    ```java {all|1-4|7|8|10|11|13|15-18|18|18|19}
 
   The stack is a picture of what is still owed, newest on top. The code does
-  not remove anything: `unshift` put the newest undo at the front, a forward
-  `for...of` walks the array, and each undo is drawn as done once it has run. The history rows are the Activity events
+  not remove anything: `addCompensation` appends each undo to the Saga's list,
+  `compensate()` walks it from the end, and each undo is drawn as done once it
+  has run. The history rows are the Activity events
   Temporal records, in order; Workflow Task events are left out, as the UI's
   compact view does.
 -->
@@ -20,7 +21,7 @@ import { useSlideContext } from '@slidev/client'
 type Row = { event: string; detail: string; tone: 'ok' | 'fail' | 'plain' }
 type Step = { stack: string[]; done: string[]; running?: string; rows: Row[]; say: string }
 
-const STARTED: Row = { event: 'WorkflowExecutionStarted', detail: 'orderFulfillmentWorkflow', tone: 'plain' }
+const STARTED: Row = { event: 'WorkflowExecutionStarted', detail: 'OrderFulfillmentWorkflow', tone: 'plain' }
 const RESERVE: Row = { event: 'ActivityTaskCompleted', detail: 'reserveInventory', tone: 'ok' }
 const CHARGE: Row = { event: 'ActivityTaskCompleted', detail: 'chargePayment', tone: 'ok' }
 const DISPATCH: Row = { event: 'ActivityTaskFailed', detail: 'dispatchCourier', tone: 'fail' }
@@ -34,15 +35,15 @@ const F = 'refundPaymentIfCharged'
 const STEPS: Step[] = [
   { stack: [], done: [], rows: [], say: 'One order, started with <code>--fail-dispatch</code>.' },
   { stack: [], done: [], rows: [STARTED], say: 'The Workflow starts with an empty stack.' },
-  { stack: [R], done: [], rows: [STARTED], say: '<code>unshift</code> the release <strong>before</strong> reserving. Nothing has run.' },
+  { stack: [R], done: [], rows: [STARTED], say: '<code>addCompensation</code> for the release <strong>before</strong> reserving. Nothing has run.' },
   { stack: [R], done: [], rows: [STARTED, RESERVE], say: 'Stock is held. Its undo is already on the stack.' },
-  { stack: [R, F], done: [], rows: [STARTED, RESERVE], say: '<code>unshift</code> the refund before charging. It goes on top.' },
+  { stack: [R, F], done: [], rows: [STARTED, RESERVE], say: '<code>addCompensation</code> for the refund before charging. It goes on top.' },
   { stack: [R, F], done: [], rows: [STARTED, RESERVE, CHARGE], say: 'Money has moved.' },
   { stack: [R, F], done: [], rows: [STARTED, RESERVE, CHARGE, DISPATCH], say: 'The courier fails. The history shows the failure first.' },
-  { stack: [R, F], done: [], running: F, rows: [STARTED, RESERVE, CHARGE, DISPATCH], say: 'The <code>catch</code> starts the unwind from the <strong>top</strong> of the stack.' },
+  { stack: [R, F], done: [], running: F, rows: [STARTED, RESERVE, CHARGE, DISPATCH], say: 'The <code>catch</code> calls <code>compensate()</code>, which starts from the <strong>top</strong> of the stack.' },
   { stack: [R, F], done: [F], rows: [STARTED, RESERVE, CHARGE, DISPATCH, REFUND], say: 'The newest undo runs first: the refund.' },
   { stack: [R, F], done: [F, R], rows: [STARTED, RESERVE, CHARGE, DISPATCH, REFUND, RELEASE], say: 'Then the release. The stack is empty.' },
-  { stack: [R, F], done: [F, R], rows: [STARTED, RESERVE, CHARGE, DISPATCH, REFUND, RELEASE, FAILED], say: '<code>throw err</code>: the Workflow ends Failed, with nothing left owed.' },
+  { stack: [R, F], done: [F, R], rows: [STARTED, RESERVE, CHARGE, DISPATCH, REFUND, RELEASE, FAILED], say: '<code>throw e</code>: the Workflow ends Failed, with nothing left owed.' },
 ]
 
 const { $clicks } = useSlideContext()
@@ -58,7 +59,7 @@ const fresh = computed(() => {
 <template>
   <div class="unwind">
     <section class="panel">
-      <h3>Compensation stack <span>compensations</span></h3>
+      <h3>Compensation stack <span>saga</span></h3>
       <div class="stack">
         <div v-if="!stack.length" class="empty">[ ] empty</div>
         <div

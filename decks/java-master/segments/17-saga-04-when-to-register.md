@@ -24,17 +24,20 @@ When in doubt, register **before** execution and make compensations idempotent.
 
 <!--
 Source: Temporal docs, Saga pattern page (When to register compensations).
-Ported from the Python Deck.
 
 Two minutes.
 
 Ask the room which of the lab's steps is truly atomic. Neither. `chargePayment`
 is the docs' own example: picture a charge that is recorded, and then the Activity
-throws. Registered after, the refund is never added to the array and the
-charge is stranded. Registered before, the refund runs, and its guard makes it
+throws. Registered after, `addCompensation` for the refund is never reached and
+the charge is stranded. Registered before, the refund runs, and its guard makes it
 safe.
 
 Registering after has one legitimate use: when the undo needs what the step
-returned, such as a payment confirmation the refund must quote. Then the undo
-cannot exist before the step, and the step had better be atomic.
+returned, such as a payment confirmation the refund must quote:
+`saga.addCompensation(activities::refundPayment, order, confirmation)` can only
+be written after `processPayment` returns `confirmation`. Then the undo cannot
+exist before the step, and the step had better be atomic.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/saga/TitleTransfer.java
+(no slide shows it; SagaTest runs it).
 -->

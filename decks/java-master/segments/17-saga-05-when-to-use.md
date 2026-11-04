@@ -18,7 +18,7 @@ rightFeatures:
 ---
 
 <!--
-Source: Temporal docs, Saga pattern page (When to use). Ported from the Python Deck.
+Source: Temporal docs, Saga pattern page (When to use).
 
 One minute. "When to use" from the docs page. Read the right-hand column more
 slowly than the left: it is the one people skip.
@@ -43,12 +43,11 @@ rightFeatures:
 ---
 
 <!--
-Source: Temporal docs, Saga pattern page (Benefits and trade-offs). Ported from
-the Python Deck.
+Source: Temporal docs, Saga pattern page (Benefits and trade-offs).
 
 One minute. "Benefits and trade-offs" from the docs page.
 
-The benefit to land is the third: the compensation array lives in Workflow state,
+The benefit to land is the third: the `Saga` object lives in Workflow state,
 so it survives a Worker dying mid-unwind. The trade-off to land is the first: the
 order was reserved and charged for a few hundred milliseconds and the world saw
 it. A Saga promises it does not stay that way.
@@ -77,8 +76,7 @@ layout: default
 </style>
 
 <!--
-Source: Temporal docs, Saga pattern page (Comparison with alternatives). Ported
-from the Python Deck.
+Source: Temporal docs, Saga pattern page (Comparison with alternatives).
 
 One minute. The table from the docs page, verbatim. The lab is the first row:
 one Workflow orchestrates every step and every compensation.

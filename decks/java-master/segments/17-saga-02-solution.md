@@ -12,7 +12,7 @@ layout: default
   errors occur to ensure cleanup happens reliably.
 
 <!--
-Source: Temporal docs, Saga pattern page (Solution). Ported from the Python Deck.
+Source: Temporal docs, Saga pattern page (Solution).
 
 One minute. The worked example is an order whose courier fails after the stock is reserved and the card is charged.
 -->
@@ -27,8 +27,7 @@ clicks: 5
 <SagaFlow panes="without" />
 
 <!--
-Source: public/diagrams/saga-flow.html, the "Without compensations" pane. Ported
-from the Python Deck.
+Source: public/diagrams/saga-flow.html, the "Without compensations" pane.
 
 Two minutes, five clicks: one order whose courier fails, with no
 compensations.
