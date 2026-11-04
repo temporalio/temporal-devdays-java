@@ -185,8 +185,8 @@ proseMax: 30
 
 ::code::
 
-```ts
-return await fulfillmentService.fulfill(orderId);
+```java
+return fulfillmentService.fulfill(orderId);
 ```
 
 ::default::
@@ -197,7 +197,8 @@ It works right up until the service is down, slow, rate limited, or the process
 is killed halfway through.
 
 <!--
-Source: PPT slide 10.
+Source: PPT slide 10. Code: snippets/src/main/java/io/temporal/devdays/essentials/why/HandRolledRetry.java,
+with the next two slides.
 
 Let it sit. Ask what is wrong with it. Someone says "no error handling," and
 that is the cue for the next slide.
@@ -214,12 +215,12 @@ proseMax: 30
 
 ::code::
 
-```ts {all|1|3|4-5}
-for (let attempt = 0; attempt < 4; attempt++) {
+```java {all|1|3|4-5}
+for (int attempt = 0; attempt < 4; attempt++) {
   try {
-    return await fulfillmentService.fulfill(orderId);
-  } catch (err) {
-    await sleep(5000);
+    return fulfillmentService.fulfill(orderId);
+  } catch (Exception e) {
+    Thread.sleep(5000);
   }
 }
 ```
@@ -239,9 +240,10 @@ Source: PPT slide 11.
   seconds whether the service needs 50ms or 50 seconds.
 
 If the process dies inside this loop, every attempt so far is lost and nobody
-knows how far it got. And after the fourth failure the loop simply ends and the
-function returns `undefined`, which is its own bug. Point at that if someone
-notices.
+knows how far it got. And after the fourth failure the loop simply ends. The
+compiler insists on a return after it, and what usually gets written there is
+`return null`, which is its own bug, found later by somebody else. Point at
+that if someone notices.
 -->
 
 ---
@@ -252,21 +254,21 @@ proseMax: 30
 
 ::code::
 
-```ts {all|2-3|8-10|14}
-async function fulfillWithRetry(orderId: string): Promise<FulfillmentResult> {
-  let delay = 1000;
-  const maxRetries = 3;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+```java {all|2-3|8-10|14}
+FulfillmentResult fulfillWithRetry(String orderId) throws InterruptedException {
+  long delay = 1000;
+  int maxRetries = 3;
+  for (int attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      return await fulfillmentService.fulfill(orderId);
-    } catch (err) {
+      return fulfillmentService.fulfill(orderId);
+    } catch (Exception e) {
       if (attempt < maxRetries - 1) {
-        await sleep(delay);
+        Thread.sleep(delay);
         delay = Math.min(delay * 2, 30_000);
       }
     }
   }
-  throw new Error("Failed after too many attempts");
+  throw new IllegalStateException("Failed after too many attempts");
 }
 ```
 
@@ -286,11 +288,11 @@ Source: PPT slide 12.
 - **Build 3 -** after all that, it gives up. The caller has no idea how many
   attempts happened or why.
 
-`sleep` here is `setTimeout` wrapped in a Promise. Plant this now, because it
-matters in about ten slides: in real Workflow code you would not write this
-loop at all, because retries are policy. When a Workflow does need to wait,
-`sleep` from `@temporalio/workflow` is a durable Timer that survives the process
-dying.
+`Thread.sleep` here parks a thread, and the wait lives only in that thread.
+Plant this now, because it matters in about ten slides: in real Workflow code
+you would not write this loop at all, because retries are policy. When a
+Workflow does need to wait, `Workflow.sleep` is a durable Timer that survives
+the process dying. `Thread.sleep` is never allowed inside a Workflow.
 
 The honest summary: this is a good implementation of the wrong idea. Every
 service in the company has its own copy, and none of them survive a restart.
@@ -312,37 +314,39 @@ notes:
 
 ::code::
 
-```ts {all|2-3|5|6-9|7|11|13|17-18|24}
-async function fulfillOrder(orderId: string): Promise<void> {
-  const lock = await locks.acquire(`order:${orderId}`, { ttlMs: 30_000 });
-  if (!lock) return;
+```java {all|2-3|5|6-9|7|11|13|17-18|24}
+void fulfillOrder(String orderId) {
+  Lock lock = locks.acquire("order:" + orderId, Duration.ofSeconds(30));
+  if (lock == null) return;
   try {
-    const state = await db.loadOrderState(orderId);
-    if (state.step < Step.Reserved) {
-      await withRetry(() => inventory.reserve(orderId));
-      await db.saveStep(orderId, Step.Reserved);
+    OrderState state = db.loadOrderState(orderId);
+    if (!state.isDone(Step.RESERVED)) {
+      withRetry(() -> inventory.reserve(orderId));
+      db.saveStep(orderId, Step.RESERVED);
     }
-    if (state.step < Step.Charged) {
-      const chargeId = await withTimeout(payments.charge(orderId), 10_000);
-      await db.saveStep(orderId, Step.Charged, { chargeId });
-      await audit.append(orderId, "payment-charged", { chargeId });
+    if (!state.isDone(Step.CHARGED)) {
+      String chargeId = withTimeout(() -> payments.charge(orderId), Duration.ofSeconds(10));
+      db.saveStep(orderId, Step.CHARGED, chargeId);
+      audit.append(orderId, "payment-charged", chargeId);
     }
     // ...and the same again for shipping
-  } catch (err) {
-    await db.markFailed(orderId, String(err));
-    await deadLetters.push(orderId);
+  } catch (Exception e) {
+    db.markFailed(orderId, e.toString());
+    deadLetters.push(orderId);
   } finally {
-    await lock.release();
+    lock.release();
   }
 }
 
-// recovery.ts: a cron that finds orders stuck mid-flow and re-runs them
+// RecoveryJob.java: a cron that finds orders stuck mid-flow and re-runs them
 ```
 
 <!--
-New to the TypeScript Deck. Illustrative, not compiled: `fulfillOrder`, the
-call from the last three slides, as a three-step process (reserve, charge,
-ship) written to survive production without Temporal. "The Temporal version"
+Illustrative, not compiled: the locks, state table, audit log and dead-letter
+queue are the services you would have to build, so there is nothing to compile
+against. It is `fulfillOrder`, the call from the last three slides, as a
+three-step process (reserve, charge, ship) written to survive production
+without Temporal. "The Temporal version"
 shows the same function three slides on; the two are meant to be compared.
 
 Each bubble is one of the unspoken requirements, paid for by hand:
@@ -447,28 +451,41 @@ notes:
 
 ::code::
 
-```ts {all|2-6|9-12|14-16}
-// activities.ts
-export async function fulfillOrder(orderId: string): Promise<string> {
-  await inventory.reserve(orderId);
-  const chargeId = await payments.charge(orderId);
-  return await shipping.ship(orderId, chargeId);
+```java {all|4-8|13-19|21-24}
+// FulfillmentActivitiesImpl.java
+public class FulfillmentActivitiesImpl implements FulfillmentActivities {
+  @Override
+  public String fulfillOrder(String orderId) {
+    inventory.reserve(orderId);
+    String chargeId = payments.charge(orderId);
+    return shipping.ship(orderId, chargeId);
+  }
 }
 
-// workflows.ts
-const { fulfillOrder } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "10 seconds",
-  retry: { maximumAttempts: 4 },
-});
+// FulfillmentWorkflowImpl.java
+public class FulfillmentWorkflowImpl implements FulfillmentWorkflow {
+  private final FulfillmentActivities activities =
+      Workflow.newActivityStub(
+          FulfillmentActivities.class,
+          ActivityOptions.newBuilder()
+              .setStartToCloseTimeout(Duration.ofSeconds(10))
+              .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(4).build())
+              .build());
 
-export async function fulfillmentWorkflow(orderId: string): Promise<string> {
-  return await fulfillOrder(orderId);
+  @Override
+  public String fulfill(String orderId) {
+    return activities.fulfillOrder(orderId);
+  }
 }
 ```
 
 <!--
 Source: PPT slides 15-16. Reworked to mirror "The non-Temporal version":
-the same `fulfillOrder`, the same three steps.
+the same `fulfillOrder`, the same three steps. Code:
+snippets/src/main/java/io/temporal/devdays/essentials/why/FulfillmentActivitiesImpl.java
+and FulfillmentWorkflowImpl.java. The two interfaces they implement,
+`FulfillmentActivities` (`@ActivityInterface`) and `FulfillmentWorkflow`
+(`@WorkflowInterface`), are one method each and left off the slide.
 
 This is the payoff. Deliver it slowly, and put slide 12 in their heads first:
 the lock, the state table, a checkpoint round every step, `withRetry`,
@@ -480,12 +497,13 @@ the lock, the state table, a checkpoint round every step, `withRetry`,
 - **Build 2 - the policy.** The same knobs from the backoff slide, except now
   they are declarative, they live in one place, and the defaults are sensible:
   a 1s initial interval that doubles to a 100s ceiling, with unlimited
-  attempts. `startToCloseTimeout` bounds each attempt, not the sequence; to
-  bound the whole thing, set `scheduleToCloseTimeout` or `maximumAttempts`.
-  Most people can leave the rest of `retry` off.
+  attempts. `setStartToCloseTimeout` bounds each attempt, not the sequence; to
+  bound the whole thing, set `setScheduleToCloseTimeout` or
+  `setMaximumAttempts`. Most people can leave `setRetryOptions` off entirely.
 - **Build 3 - the Workflow.** It calls `fulfillOrder`, and the call is the one
-  line from the naive slide again. The Workflow imports only the Activity's
-  type; `proxyActivities` turns the call into a scheduled Activity Task. Go
+  line from the naive slide again. The Workflow knows only the Activity's
+  interface; the stub `Workflow.newActivityStub` returns turns each call into a
+  scheduled Activity Task. Go
   down slide 12's bubbles and say where each went: the lock is the Workflow
   ID, the state table and checkpoints are Event History, retries and timeouts
   are the policy, the audit trail is the Web UI, and the recovery cron is a
@@ -501,8 +519,8 @@ this survives the process dying. Kill the Worker mid-attempt and the retry
 sequence carries on, on another Worker, with the attempt count intact. No retry
 library can do that, because its state is in memory.
 
-Do not explain `proxyActivities` properly here. It gets its own walkthrough in
-the Workflows segment.
+Do not explain `Workflow.newActivityStub` properly here. It gets its own
+walkthrough in the Workflows segment.
 -->
 
 ---
