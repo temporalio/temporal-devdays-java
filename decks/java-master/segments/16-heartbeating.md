@@ -36,8 +36,8 @@ The mental model: a Heartbeat is the Activity saying "I'm still alive and
 making progress." If the Heartbeats stop, Temporal assumes the worst and acts.
 You get visibility and automatic failure detection for long-running work.
 
-In Temporal terms: `startToCloseTimeout` is how long Temporal waits before
-deciding an Activity is dead. For a two-hour Activity, that means a crashed
+In Temporal terms: the Start-To-Close Timeout (`setStartToCloseTimeout`) is how
+long Temporal waits before deciding an Activity is dead. For a two-hour Activity, that means a crashed
 Worker goes unnoticed for two hours. Heartbeats give you a two-hour Activity
 with a thirty-second failure detection time.
 -->
@@ -55,9 +55,9 @@ layout: default
 <!--
 Source: PPT slide 124.
 
-- **Faster recovery:** instead of waiting out a 12-hour `startToCloseTimeout`
-  before retrying a crashed job, a 30-second `heartbeatTimeout` means you
-  notice and retry within seconds.
+- **Faster recovery:** instead of waiting out a 12-hour Start-To-Close Timeout
+  before retrying a crashed job, a 30-second Heartbeat Timeout
+  (`setHeartbeatTimeout`) means you notice and retry within seconds.
 - **Resume from a checkpoint:** processing a million records and the Worker dies
   at 750,000? The Heartbeat details let the next attempt start at 750,001. That
   is real money saved in compute.
@@ -69,67 +69,74 @@ Source: PPT slide 124.
 
 ---
 layout: code-walkthrough
-heading: Heartbeats in TypeScript
+heading: Heartbeats in Java
 notes:
-  - The Activity's execution info, from inside the Activity
+  - The Activity's execution context, from inside the Activity
   - Which attempt this is. 1 on the first try, 2 on the first retry
-  - The last Heartbeat's saved details. Nothing on attempt 1, the progress so far on a retry
+  - The last Heartbeat's saved details. Empty on attempt 1, the progress so far on a retry
   - "The Heartbeat: <strong>still alive, still working</strong>, and here is how far I got"
 ---
 
 ::code::
 
-```ts {all|2|3|4|9}
-export async function packShipment(input: ShipmentInput): Promise<number> {
-  const info = activityInfo();
-  log.info(`attempt ${info.attempt}`);
-  const start: number = info.heartbeatDetails ?? 0;
+```java {all|3|4|5|10}
+@Override
+public ShipmentResult packShipment(ShipmentInput input) {
+  ActivityExecutionContext context = Activity.getExecutionContext();
+  int attempt = context.getInfo().getAttempt();
+  int start = context.getHeartbeatDetails(Integer.class).orElse(0);
 
-  for (let index = start; index < input.itemCount; index++) {
-    await packItem(input.shipmentId, index);
+  for (int item = start; item < input.itemCount(); item++) {
+    packItem(input.shipmentId(), item);
 
-    heartbeat(index + 1);
+    context.heartbeat(item + 1);
   }
 
-  return input.itemCount;
+  return new ShipmentResult(input.shipmentId(), input.itemCount(), attempt);
 }
 ```
 
 <!--
 Source: PPT slides 125-128. One build per slide in the original.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/heartbeat/ShipmentActivitiesImpl.java,
+run by HeartbeatTest. `packShipment`, `ShipmentInput` and `ShipmentResult` are
+the names the Heartbeats Workshop uses.
 
-- **Build 1 - `activityInfo()`.** The original fetched an execution context
-  object. In TypeScript the functions exported from `@temporalio/activity`
-  (`activityInfo`, `heartbeat`, `log`) find the current Activity for you.
-  `Context.current()` is the same thing, spelled longer.
-- **Build 2 - the attempt.** Only logged here, but useful: an Activity can
-  behave differently on a retry, for example by checking whether a charge
-  already went through.
-- **Build 3 - resume.** If this is:
-  - attempt 1, `heartbeatDetails` is `undefined`, so `?? 0` starts from item 0
+- **Build 1 - the context.** `Activity.getExecutionContext()` finds the current
+  Activity for you, from the thread the Activity runs on. Everything below
+  hangs off it.
+- **Build 2 - the attempt.** Returned in the result here, and worth logging:
+  an Activity can behave differently on a retry, for example by checking
+  whether a charge already went through.
+- **Build 3 - resume.** `getHeartbeatDetails(Integer.class)` returns an
+  `Optional`. If this is:
+  - attempt 1, it is empty, so `orElse(0)` starts from item 0
   - attempt 2 or later, start from wherever the previous attempt got to
 - **Build 4 - the Heartbeat.** Tells Temporal "still alive" and records the
   progress. If the Worker crashes, the next attempt reads it back in build 3.
 
 Heartbeats are throttled by the SDK, so calling it every item is fine; it will
-not hit the Server every loop (at most once per 80% of the Heartbeat Timeout).
-When the Activity throws, the SDK sends the latest details with the failure, so
-a retry resumes exactly where the last attempt got to. If the whole Worker
-crashes, the details the Server holds may be a little behind the last call, so
-the work must tolerate redoing an item or two. Idempotent item processing, in
-other words.
+not hit the Server every loop. The Java SDK sends at most one Heartbeat per
+throttle interval: 80% of the Heartbeat Timeout, capped at 60 seconds
+(`WorkerOptions`' `maxHeartbeatThrottleInterval`), or 30 seconds when no
+Heartbeat Timeout is set. When the Activity
+throws, the SDK sends the latest details with the failure, so a retry resumes
+exactly where the last attempt got to; the test proves it by failing on item 2
+and checking that the retry starts at item 2. If the whole Worker crashes, the
+details the Server holds may be a little behind the last call, so the work must
+tolerate redoing an item or two. Idempotent item processing, in other words.
 
 Two things the caller must do, or none of this works:
 
-- set `heartbeatTimeout` in `proxyActivities`. Without it, Temporal is not
-  watching for missed Heartbeats, and a dead Worker is only noticed when
-  `startToCloseTimeout` expires.
-- keep `startToCloseTimeout` long enough for the whole job. The Heartbeat
+- set `setHeartbeatTimeout(...)` in the Workflow's `ActivityOptions`. Without
+  it, Temporal is not watching for missed Heartbeats, and a dead Worker is only
+  noticed when the Start-To-Close Timeout expires.
+- keep the Start-To-Close Timeout long enough for the whole job. The Heartbeat
   Timeout is the short one.
 
-`heartbeatDetails` holds whatever you passed, decoded by the Data Converter and
-typed `any`. A number comes back as a number; an object comes back as a plain
-object, not a class instance. Keep the details small: they are stored by the
+The details hold whatever you passed, encoded by the Data Converter and decoded
+into the class you ask for. `Integer.class` gives back an `Integer`; a record
+comes back as that record. Keep the details small: they are stored by the
 Server like everything else.
 -->
 
@@ -137,51 +144,59 @@ Server like everything else.
 layout: code-walkthrough
 heading: Heartbeating and cancellation
 notes:
-  - Heartbeat with progress, every item
-  - A cancelled Activity finds out <strong>at a Heartbeat</strong>. The SDK aborts <code>cancellationSignal()</code>; look at it
-  - Clean up on <code>CancelledFailure</code>, then rethrow so Temporal records the cancellation
+  - Heartbeat with progress, every item. This call is also where cancellation arrives
+  - A cancelled Activity finds out <strong>at a Heartbeat</strong>. The call throws <code>ActivityCanceledException</code>
+  - Clean up, then rethrow so Temporal records the cancellation. <code>releaseLocks</code>
 ---
 
 ::code::
 
-```ts {all|5|6|9-12}
-export async function processItems(input: ProcessInput): Promise<void> {
+```java {all|7|9|10-11}
+@Override
+public void processItems(List<String> items) {
+  ActivityExecutionContext context = Activity.getExecutionContext();
   try {
-    for (const [index, item] of input.items.entries()) {
-      await processItem(item);
-      heartbeat(index + 1);
-      cancellationSignal().throwIfAborted();
+    for (int index = 0; index < items.size(); index++) {
+      processItem(items.get(index));
+      context.heartbeat(index + 1);
     }
-  } catch (err) {
-    if (err instanceof CancelledFailure) {
-      await releaseLocks(input);
-    }
-    throw err;
+  } catch (ActivityCanceledException e) {
+    releaseLocks(items);
+    throw e;
   }
 }
 ```
 
 <!--
 Source: PPT slides 129-130.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/heartbeat/ProcessActivitiesImpl.java,
+run by HeartbeatTest, which cancels the Workflow a second in and checks the
+locks were released once.
 
 The original had a second, empty `heartbeat()` call "to check for
-cancellation." TypeScript does not need one: when the Server tells the Worker
-the Activity was cancelled, the SDK rejects the `cancelled()` Promise and aborts
-`cancellationSignal()`, with a `CancelledFailure` as the reason. That delivery
-rides on the Heartbeat, which is why an Activity that never heartbeats can never
-be cancelled.
+cancellation." Java does not need one: the same `heartbeat(...)` call that
+records progress is the one that throws. When the Server tells the Worker the
+Activity was cancelled (the answer comes back on a Heartbeat), the next
+`heartbeat(...)` call throws `ActivityCanceledException`. That delivery rides on
+the Heartbeat, which is why an Activity that never heartbeats can never be
+cancelled.
 
 - **Build 1 -** progress on every item, as before.
-- **Build 2 -** unlike some SDKs, TypeScript does not throw into the middle of
-  your `await`. Your code has to look. `throwIfAborted()` throws the
-  `CancelledFailure` once the signal is aborted. Passing the signal to anything
-  that takes one (`fetch(url, { signal })`, a database driver) cancels the
-  in-flight call too, and `sleep` from `@temporalio/activity` is already
-  cancellation-aware.
-- **Build 3 -** clean up and rethrow. Swallowing the `CancelledFailure` and
-  returning normally makes the Activity look like it succeeded.
+- **Build 2 -** the SDK does not interrupt your thread. A blocking call in
+  `processItem` runs to the end; the cancellation surfaces at the next
+  Heartbeat. Keep the work between Heartbeats short, and remember throttling:
+  with a 1-second Heartbeat Timeout the Worker talks to the Server about every
+  0.8 seconds, so the cancellation lands within a second or so.
+  `ActivityCanceledException` is one subclass of `ActivityCompletionException`;
+  catch the parent instead to also clean up when the Activity is paused or
+  reset, or the Worker is shutting down. The Heartbeats Workshop does that.
+- **Build 3 -** clean up and rethrow. The SDK reports a thrown
+  `ActivityCanceledException` as a cancellation. Swallowing it and returning
+  normally makes the Activity look like it succeeded.
 
 The caller decides how long to wait for this cleanup: with
-`cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED` in
-`proxyActivities`, the Workflow waits until the Activity has actually stopped.
+`setCancellationType(ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)` in
+the Workflow's `ActivityOptions`, the Workflow waits until the Activity has
+actually stopped. The default, `TRY_CANCEL`, requests the cancellation and
+moves on without waiting.
 -->

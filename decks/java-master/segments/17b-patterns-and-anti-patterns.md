@@ -29,32 +29,36 @@ proseMax: 30
 
 ::code::
 
-```ts
+```java
 // ❌ A random ID: a double-tapped "Send" starts two transfers
-await client.workflow.start(transferWorkflow, {
-  args: [transfer],
-  taskQueue: "payments",
-  workflowId: randomUUID(),
-});
+TransferWorkflow random = client.newWorkflowStub(
+    TransferWorkflow.class,
+    WorkflowOptions.newBuilder()
+        .setTaskQueue("payments")
+        .setWorkflowId(UUID.randomUUID().toString())
+        .build());
+WorkflowClient.start(random::send, transfer);
 
 // ✅ The transfer's own ID: the second start is rejected
-await client.workflow.start(transferWorkflow, {
-  args: [transfer],
-  taskQueue: "payments",
-  workflowId: `transfer-${transfer.transferId}`,
-});
+TransferWorkflow byId = client.newWorkflowStub(
+    TransferWorkflow.class,
+    WorkflowOptions.newBuilder()
+        .setTaskQueue("payments")
+        .setWorkflowId("transfer-" + transfer.transferId())
+        .build());
+WorkflowClient.start(byId::send, transfer);
 ```
 
 ::default::
 
 Two running Workflows can never share an ID. Make the ID the thing that must not
-happen twice, and the second start throws `WorkflowExecutionAlreadyStartedError`.
+happen twice, and the second start throws `WorkflowExecutionAlreadyStarted`.
 
 <!--
 Source: docs.temporal.io/design-patterns/entity-workflow#best-practices and
 temporal.io/blog/idempotency-and-durable-execution#idempotent-workflows.
-Code: snippets/src/antipatterns.client.ts, run by
-snippets/tests/runtime/antipatterns.test.ts, which starts each version twice.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/antipatterns/TransferStarts.java,
+run by AntipatternsTest, which starts each version twice.
 
 The ❌ version is the default most people write first, because the samples use
 a UUID. A mobile app retries on a flaky connection, a user double-taps, a
@@ -65,13 +69,15 @@ generate that key as close to the user as possible: the app creates the
 transfer ID when the user opens the form, not when the backend receives it.
 
 Two policies to know by name, without reading them out:
-- `workflowIdConflictPolicy` is about a *running* Workflow with the same ID. The
-  default fails the start; `USE_EXISTING` returns a handle to the running one
-  instead, which is what you want for "start it if it isn't already going".
-- `workflowIdReusePolicy` is about a *closed* one. The default allows a new run
-  with the same ID once the first has finished. For a transfer that must never
-  run twice, set `REJECT_DUPLICATE`; it holds for the Namespace's retention
-  period.
+- `setWorkflowIdConflictPolicy` is about a *running* Workflow with the same ID.
+  The default fails the start; `WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING`
+  attaches to the running one instead, which is what you want for "start it if
+  it isn't already going".
+- `setWorkflowIdReusePolicy` is about a *closed* one. The default,
+  `ALLOW_DUPLICATE`, allows a new run with the same ID once the first has
+  finished. For a transfer that must never run twice, set
+  `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE`; it holds for the Namespace's
+  retention period.
 
 Bonus: the transfer is now findable by its own ID in the Web UI and the CLI.
 -->
@@ -84,14 +90,13 @@ proseMax: 30
 
 ::code::
 
-```ts
-import { activityInfo } from "@temporalio/activity";
+```java
+@Override
+public String postDebit(Debit debit) {
+  ActivityInfo info = Activity.getExecutionContext().getInfo();
+  String idempotencyKey = info.getWorkflowRunId() + "-" + info.getActivityId();
 
-export async function postDebit(debit: Debit): Promise<string> {
-  const { workflowExecution, activityId } = activityInfo();
-  const idempotencyKey = `${workflowExecution!.runId}-${activityId}`;
-
-  return ledger.post(debit, { idempotencyKey });
+  return ledger.post(debit, idempotencyKey);
 }
 ```
 
@@ -103,8 +108,8 @@ every retry and unique across Workflows, so the ledger can drop the repeat.
 <!--
 Source: docs.temporal.io/activity-definition#idempotency and
 docs.temporal.io/best-practices/error-handling#idempotence.
-Code: snippets/src/antipatterns.activities.ts, run by
-snippets/tests/runtime/antipatterns.test.ts.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/antipatterns/DebitActivitiesImpl.java,
+run by AntipatternsTest.
 
 The failure this prevents: the Worker posts the debit, the ledger commits it,
 and the Worker crashes (or the response times out) before Temporal hears about
@@ -117,10 +122,12 @@ APIs accept one (Stripe's `Idempotency-Key` header is the usual example). If
 yours does not, an `operations` table with a unique constraint on the key does
 the job.
 
-`workflowExecution` is optional in the type because a Standalone Activity has no
-Workflow; an Activity a Workflow schedules always has it, hence the `!`.
+`getWorkflowRunId()` is the run of the Workflow that scheduled the Activity. It
+is `null` only for a Standalone Activity, which no Workflow scheduled; an
+Activity called from a Workflow always has it. (The older `getRunId()` returns
+the same value and is deprecated.)
 
-Do not use `randomUUID()` inside the Activity: every attempt gets a new key,
+Do not use `UUID.randomUUID()` inside the Activity: every attempt gets a new key,
 which deduplicates nothing.
 -->
 
@@ -132,20 +139,25 @@ proseMax: 30
 
 ::code::
 
-```ts
+```java
 // ❌ Every pass adds an Activity and a Timer to history
-let status = await checkSettlement(wireId);
-while (status !== "SETTLED") {
-  await sleep("1 minute");
-  status = await checkSettlement(wireId);
+String status = wires.checkSettlement(wireId);
+while (!status.equals("SETTLED")) {
+  Workflow.sleep(Duration.ofMinutes(1));
+  status = wires.checkSettlement(wireId);
 }
 
 // ✅ One Activity. The Retry Policy does the waiting
-const { awaitSettlement } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "10 seconds",
-  retry: { initialInterval: "1 minute", backoffCoefficient: 1 },
-});
-await awaitSettlement(wireId);
+WireActivities wires = Workflow.newActivityStub(
+    WireActivities.class,
+    ActivityOptions.newBuilder()
+        .setStartToCloseTimeout(Duration.ofSeconds(10))
+        .setRetryOptions(RetryOptions.newBuilder()
+            .setInitialInterval(Duration.ofMinutes(1))
+            .setBackoffCoefficient(1)
+            .build())
+        .build());
+wires.awaitSettlement(wireId);
 ```
 
 ::default::
@@ -155,22 +167,24 @@ not recorded in history, so it can poll for days and history stays one Activity.
 
 <!--
 Source: docs.temporal.io/design-patterns/polling#infrequent-polling-resource-efficient.
-Code: snippets/src/antipatterns.workflows.ts and antipatterns.activities.ts, run
-by snippets/tests/runtime/antipatterns.test.ts: four checks leave four
-Activities and three Timers in the ❌ history, and one Activity in the ✅ one.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/antipatterns/LoopPollingWorkflowImpl.java
+and RetryPollingWorkflowImpl.java, run by AntipatternsTest: four checks leave
+four Activities and three Timers in the ❌ history, and one Activity in the ✅
+one. In the ❌ half, `wires` is the same Activity stub, built once as a field.
 
 The scenario: a wire has gone out on a payment network that has no webhook, and
 the Workflow must wait for it to settle.
 
-`backoffCoefficient: 1` is what turns retries into a fixed poll interval:
+`setBackoffCoefficient(1)` is what turns retries into a fixed poll interval:
 every wait is the Initial Interval. The Activity throws
-`ApplicationFailure.retryable(...)` when the wire is still pending.
+`ApplicationFailure.newFailure(...)`, a retryable failure, when the wire is
+still pending.
 
 The docs split polling three ways, and it is worth naming the other two:
 - Every second or faster: loop *inside* one Activity, heartbeating each pass.
 - Every minute or slower: this slide.
 - Several steps per poll, or parameters that change between polls: a Child
-  Workflow that loops with `sleep` and calls Continue-As-New.
+  Workflow that loops with `Workflow.sleep` and calls Continue-As-New.
 
 If the network can call you back, skip polling: complete the Activity
 asynchronously from the webhook.
@@ -184,28 +198,32 @@ proseMax: 30
 
 ::code::
 
-```ts
+```java
 // ❌ An Activity that waits out a three-day hold
-export async function releaseAfterHold(deposit: Deposit): Promise<void> {
-  await setTimeout(3 * 24 * 60 * 60 * 1000); // node:timers/promises
-  await bank.release(deposit.depositId);
+@Override
+public void releaseAfterHold(Deposit deposit) throws InterruptedException {
+  Thread.sleep(Duration.ofDays(3));
+  bank.release(deposit.depositId());
 }
 
 // ✅ A durable Timer in the Workflow, then a quick Activity
-await sleep("3 days");
-await releaseFunds(deposit.depositId);
+@Override
+public void hold(Deposit deposit) {
+  Workflow.sleep(Duration.ofDays(3));
+  activities.releaseFunds(deposit.depositId());
+}
 ```
 
 ::default::
 
 The ❌ Activity holds a Worker slot for three days and starts over if the Worker
-restarts. A Workflow `sleep` is a Timer on the Server: no slot, no restart.
+restarts. `Workflow.sleep` is a Timer on the Server: no slot, no restart.
 
 <!--
-Source: docs.temporal.io/develop/typescript/workflows/timers.
-Code: snippets/src/antipatterns.workflows.ts (`depositHoldWorkflow`), run by
-snippets/tests/runtime/antipatterns.test.ts on the time-skipping server: one
-Timer of exactly three days, then the release.
+Source: the Temporal docs on durable Timers in Java (`Workflow.sleep`).
+Code: snippets/src/main/java/io/temporal/devdays/essentials/antipatterns/DepositActivitiesImpl.java
+(❌) and DepositHoldWorkflowImpl.java (✅), run by AntipatternsTest on the
+time-skipping test server: one Timer of exactly three days, then the release.
 
 The scenario: a deposited cheque is held for three business days before the
 funds are released.
@@ -215,8 +233,8 @@ Everything wrong with the ❌ version, in the order people discover it:
 - If the Worker restarts on day two, nothing notices until that timeout
   expires, and then the retry waits another three days from zero. A Heartbeat
   Timeout would notice sooner, but the retry still starts the wait over.
-- It occupies an Activity slot the whole time, so a Worker can only hold as
-  many deposits as it has slots.
+- It occupies an Activity slot, and a thread, the whole time, so a Worker can
+  only hold as many deposits as it has slots.
 
 The ✅ version costs two Events (TimerStarted, TimerFired), survives any number
 of Worker restarts, and holds a million deposits as easily as one.
@@ -276,8 +294,8 @@ clicks: 4
 <!--
 Source: docs.temporal.io/design-patterns/resumable-activity, and its best
 practices.
-Code: snippets/src/resumable.workflows.ts and resumable.activities.ts, run by
-snippets/tests/runtime/resumable.test.ts; the console is
+Code: snippets/src/main/java/io/temporal/devdays/essentials/resumable/TransferWorkflowImpl.java
+and TransferActivitiesImpl.java, run by ResumableTest; the console is
 components/ResumableTransfer.vue.
 
 Hand the room the keyboard, figuratively: "you're the engineer on call; what
@@ -287,30 +305,33 @@ Reset goes back to the start.
 
 The pattern in one breath: when an Activity fails because its input is wrong,
 retries cannot fix it and failing the Workflow makes the customer start over.
-So the Workflow catches the failure, parks on `condition`, and waits for a
+So the Workflow catches the failure, parks on `Workflow.await`, and waits for a
 Signal carrying the corrected input. Then it runs the same Activity again.
 
 What each button teaches:
 - **Send the transfer.** `executeTransfer` throws
-  `ApplicationFailure.nonRetryable(..., "AccountNotFoundError")` for an unknown
-  account, so there is one attempt, not the Retry Policy's three (it is
-  `maximumAttempts: 3` for timeouts and 503s). The Workflow catches the
-  `ActivityFailure` and is Running, not Failed.
-- **Query getStatus.** The answer is `AWAITING_CORRECTION`, and the history
+  `ApplicationFailure.newNonRetryableFailure(..., "AccountNotFoundError")` for
+  an unknown account, so there is one attempt, not the Retry Policy's three (it
+  is `setMaximumAttempts(3)` for timeouts and 503s). The Workflow catches the
+  `ActivityFailure` and is Running, not Failed. The Event History shows the
+  Activity Type as `ExecuteTransfer`: the method name with its first letter
+  capitalized, the Java SDK's default.
+- **Query getStatus.** A `@QueryMethod` on the Workflow interface. The answer is `AWAITING_CORRECTION`, and the history
   does not grow. Point at that. In production, also set a Search Attribute with
   the status so operators can list every parked transfer, and alert when one
   parks rather than hoping someone opens the Web UI.
-- **Signal "acct 1234".** The Signal is in history (Signals always are), but
-  the handler checks the format and ignores it. A Signal handler cannot reject
+- **Signal "acct 1234".** `retryWithCorrection` is a `@SignalMethod`. The
+  Signal is in history (Signals always are), but the handler checks the format
+  and ignores it. A Signal handler cannot reject
   the way an Update validator can; if the operator needs an error back, make
   the correction an Update.
-- **Signal "12345678".** The parked `condition` resolves, the loop runs
+- **Signal "12345678".** The parked `Workflow.await` returns, the loop runs
   `executeTransfer` again, and the Workflow completes. Same run ID throughout:
   the test checks it.
 
-Two rules worth one sentence each: catch only `ActivityFailure` (and let
-cancellation through with `isCancellation`), so a Workflow bug is not parked
-as if it were bad data; and if a Workflow may be corrected many times,
+Two rules worth one sentence each: catch only `ActivityFailure` (and rethrow it
+when its cause is a `CanceledFailure`, so cancellation gets through), so a
+Workflow bug is not parked as if it were bad data; and if a Workflow may be corrected many times,
 Continue-As-New before the history grows.
 
 This is not the Approval pattern: approval gates progress on a decision; this
@@ -375,21 +396,22 @@ A transfer to a mistyped account, parked, corrected, and sent.
 </ZiggyHero>
 
 <!--
-The code is the previous slide's, in snippets/ (resumable.workflows.ts and
-resumable.activities.ts). The bank knows two accounts: 10000001 and 12345678.
+The code is the previous slide's, in snippets/ (TransferWorkflowImpl.java and
+TransferActivitiesImpl.java under io/temporal/devdays/essentials/resumable).
+The bank knows two accounts: 10000001 and 12345678.
 
 Terminal 1, the dev server (skip if one is running):
 
     temporal server start-dev
 
-Terminal 2, the Worker, from decks/typescript-master/snippets:
+Terminal 2, the Worker, from decks/java-master/snippets:
 
-    npm ci
-    npm run demo:resumable
+    mvn -q compile exec:java -Dexec.mainClass=io.temporal.devdays.essentials.resumable.ResumableDemo
 
-Terminal 3, a transfer to an account that does not exist:
+Terminal 3, a transfer to an account that does not exist. The Workflow Type is
+the interface name, `TransferWorkflow`:
 
-    temporal workflow start --type transferWorkflow \
+    temporal workflow start --type TransferWorkflow \
       --task-queue resumable-demo --workflow-id transfer-4471 \
       --input '{"fromAccount":"10000001","toAccount":"99999999","amount":500}'
 
@@ -416,7 +438,7 @@ Now the real fix:
 
 It completes with "Transfer of 500 to 12345678 completed". Back in the Web UI,
 the whole story is one history: the failure, the Signal, the second
-executeTransfer, the result.
+ExecuteTransfer, the result.
 
 To run it again, use a new --workflow-id, or wait for this one to close: the
 default reuse policy allows a new run once the first has finished.

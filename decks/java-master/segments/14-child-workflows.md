@@ -53,10 +53,10 @@ full Workflow Execution that happens to be started by a parent. That
 independence is what makes it powerful, and what separates it from calling a
 function.
 
-In TypeScript there is no child marker at all. A Child Workflow is an ordinary
-exported Workflow function; whether it is a child is decided entirely by who
-starts it. The same Workflow can be a child here and started from a Client
-somewhere else.
+In Java there is no child marker at all. A Child Workflow is an ordinary
+`@WorkflowInterface` and its implementation, registered on a Worker like any
+other; whether it is a child is decided entirely by who starts it. The same
+Workflow can be a child here and started from a Client somewhere else.
 -->
 
 ---
@@ -96,7 +96,7 @@ layout: default
 
 # Parent-child lifecycle
 
-What happens to the child when the parent closes is its `parentClosePolicy`.
+What happens to the child when the parent closes is its Parent Close Policy.
 
 <div class="grid grid-cols-3 gap-4 mt-6">
   <ParentClosePolicy v-click policy="TERMINATE" />
@@ -105,7 +105,7 @@ What happens to the child when the parent closes is its `parentClosePolicy`.
 </div>
 
 <!--
-Source: PPT slide 103. The diagrams are new to the TypeScript Deck.
+Source: PPT slide 103.
 
 The parent starts the child, and the child gets its own Workflow ID. Each click
 reveals one policy: the same parent, the same child, the same moment the parent
@@ -122,54 +122,65 @@ closes, and only the child's lane changes.
 
 The policy applies whenever the parent closes, whether it completed, failed,
 timed out or was terminated. Not only on failure. In code these are
-`ParentClosePolicy.TERMINATE`, `ParentClosePolicy.ABANDON` and
-`ParentClosePolicy.REQUEST_CANCEL`, imported from `@temporalio/workflow`.
+`ParentClosePolicy.PARENT_CLOSE_POLICY_TERMINATE`, `PARENT_CLOSE_POLICY_ABANDON`
+and `PARENT_CLOSE_POLICY_REQUEST_CANCEL`, from `io.temporal.api.enums.v1`, set
+with `ChildWorkflowOptions.newBuilder().setParentClosePolicy(...)`.
 -->
 
 ---
 layout: code-walkthrough
 heading: Spawning a child, waiting for the result
 notes:
-  - Pass the child Workflow function itself, the same way the Client does
-  - Its input. Serializable, like every Workflow argument
+  - A typed stub for the child's <code>ShipmentWorkflow</code> interface. The same interface a Client would use
   - The child's Workflow ID. Plan this scheme; IDs must be unique
   - What happens to the child if this parent closes first
+  - Calling <code>ship</code> starts the child and blocks until it returns. Its argument is the child's input
 ---
 
 ::code::
 
-```ts {all|2|3|4|5}
-export async function orderWorkflow(order: Order): Promise<string> {
-  const shipment = await executeChild(shipmentWorkflow, {
-    args: [order.shipment],
-    workflowId: `shipment-${order.orderId}`,
-    parentClosePolicy: ParentClosePolicy.ABANDON,
-  });
-  return shipment.trackingNumber;
+```java {all|3-4|6|7|9}
+@Override
+public String placeOrder(Order order) {
+  ShipmentWorkflow shipment = Workflow.newChildWorkflowStub(
+      ShipmentWorkflow.class,
+      ChildWorkflowOptions.newBuilder()
+          .setWorkflowId("shipment-" + order.orderId())
+          .setParentClosePolicy(ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON)
+          .build());
+  return shipment.ship(order.orderId());
 }
 ```
 
 <!--
 Source: PPT slide 104.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/child/OrderWorkflowImpl.java,
+run by ChildWorkflowsTest. `OrderWorkflow.placeOrder` and `ShipmentWorkflow.ship`
+are the names the Child Workflows Workshop uses.
 
-- **Build 1 - the reference.** `shipmentWorkflow`, the function, not a string.
-  Its name becomes the Workflow Type, and you get type checking on the
-  arguments and the return value for free. The child must be exported from the
-  Worker's Workflow modules like any other Workflow.
-- **Build 2 - the input.** `args` is a tuple, checked against the child's
-  parameters. Same convention as `client.workflow.start`.
-- **Build 3 - the ID.** `shipment-${orderId}` is deterministic and meaningful:
-  support can find the child by order number. A random ID here is not a replay
-  bug in TypeScript (`Math.random` and `uuid4()` from `@temporalio/workflow` are
-  deterministic in a Workflow), but you lose the ability to find it. Leave
-  `workflowId` off and the SDK generates one.
-- **Build 4 - the policy.** ABANDON here, so a parent that fails after
+- **Build 1 - the stub.** `Workflow.newChildWorkflowStub` takes the child's
+  interface, not a string. Its Workflow Type is the interface name,
+  `ShipmentWorkflow`, and the compiler checks the arguments and the return
+  value for free. The child's implementation must be registered on a Worker
+  polling its Task Queue, like any other Workflow; by default the child runs on
+  the parent's Task Queue.
+- **Build 2 - the ID.** `"shipment-" + orderId` is deterministic and
+  meaningful: support can find the child by order number. A random ID is
+  possible (`Workflow.randomUUID()` is replay-safe), but you lose the ability to
+  find it. Leave `setWorkflowId` off and the SDK generates one.
+- **Build 3 - the policy.** ABANDON here, so a parent that fails after
   dispatching does not kill a shipment that is already moving. Leave it off and
   you get TERMINATE.
+- **Build 4 - the call.** Calling a method on the stub starts the child and
+  blocks the Workflow until the child returns. The argument is the child's
+  input, serialized like every Workflow argument. Same convention as a Client's
+  Workflow stub.
 
-`executeChild` waits for the result. `startChild` resolves to a handle as soon
-as the child has started; you can await `handle.result()` later, Signal the
-child, or leave it alone. That is the fan-out shape on the next slide.
+To start a child without waiting, call it through `Async.function(shipment::ship,
+orderId)`: that returns a `Promise` straight away, which you can `get()` later.
+`Workflow.getWorkflowExecution(shipment).get()` waits only until the child has
+started, which is what an ABANDON child that should outlive its parent needs.
+That is the fan-out shape on the next slide.
 -->
 
 ---
@@ -186,9 +197,10 @@ layout: default
 <!--
 Source: PPT slide 105.
 
-Fan-out/fan-in gets the most excitement. The shape in TypeScript is a list of
-`startChild` handles, then `Promise.all(handles.map((h) => h.result()))`, or
-simply `Promise.all` over several `executeChild` calls. Fifty children
+Fan-out/fan-in gets the most excitement. The shape in Java is one child stub
+per item, each started with `Async.function(stub::ship, id)` into a
+`List<Promise<String>>`, then `Promise.allOf(promises).get()` to wait for them
+all. Fifty children
 processing a batch each, then a parent that aggregates. A compelling demo if
 you have one ready.
 -->
@@ -208,7 +220,7 @@ layout: default
 Source: PPT slide 106.
 
 The last one bites in production. If you spawn one child per entity, the ID
-scheme (`order-${orderId}-fulfillment`) is part of your system design, not an
+scheme (`"order-" + orderId + "-fulfillment"`) is part of your system design, not an
 afterthought. A collision fails the start, and it happens at 3am.
 
 Tease Continue-As-New here. It is next.
