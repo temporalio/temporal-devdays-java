@@ -12,8 +12,7 @@ Large payloads do not belong in the Event History.
 
 <!--
 Source: PPT slides 65-67, `{{SLIDE:claim-check-upload-activity}}` and
-`{{SLIDE:claim-check-fetch-activity}}`. The Workflow and External Storage
-slides are new to the TypeScript Deck.
+`{{SLIDE:claim-check-fetch-activity}}`.
 
 Set it up before the code: every Activity argument and result is stored in the
 Event History. Temporal rejects a single payload over 2 MB by default (fixed at
@@ -31,30 +30,26 @@ layout: code-walkthrough
 heading: Store the bytes, return the key
 notes:
   - The key is the claim check. A small string that stands in for a large object
-  - Store the bytes anywhere. S3 here, but a bucket, a blob store or a database will do
+  - Store the bytes anywhere. A bucket, a blob store or a database will do
   - Return the key. This is the only thing that enters the Event History
 ---
 
 ::code::
 
-```ts {all|2|3-9|10}
-export async function uploadToStorage(data: Buffer): Promise<string> {
-  const key = randomUUID();
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: key,
-      Body: data,
-    }),
-  );
+```java {all|2|3|4}
+public String uploadToStorage(byte[] data) {
+  String key = UUID.randomUUID().toString();
+  blobs.put(BUCKET, key, data);
   return key;
 }
 ```
 
 <!--
-Source: PPT slide 66. The original streamed the body with `Readable.from`; a
-Buffer body is simpler and lets the SDK set the content length. The tests
-behind this Deck run it against an in-memory stand-in for the S3 client.
+Source: PPT slide 66. `blobs` is a small `BlobStore` interface (`put`, `get`,
+`delete`) in front of your store's client: an S3 `PutObject`, a GCS upload, a
+row in a table. The tests behind this Deck run it against an in-memory one.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/claimcheck/ClaimCheckStorage.java
 
 Keep it simple: it is a thin wrapper around your blob storage client and it
 should stay that way.
@@ -65,15 +60,15 @@ would already be in the Event History. Call it from inside the Activity that
 *produces* the bytes (next-but-one slide), or from the Client before it starts
 the Workflow.
 
-`randomUUID()` from `node:crypto` is fine here because this runs outside the
-Workflow sandbox. Inside a Workflow you would use `uuid4()` from
-`@temporalio/workflow`. Worth pointing at: it is the determinism rule from the
-design-patterns segment showing up in real code.
+`UUID.randomUUID()` is fine here because this runs in an Activity, not in
+Workflow code. Inside a Workflow you would use `Workflow.randomUUID()`. Worth
+pointing at: it is the determinism rule from the design-patterns segment
+showing up in real code.
 
 The guarantee to name: the Activity around this gets Temporal's full retry
-treatment, so a transient S3 error does not lose the data. The cost of a retry
-is a fresh key and, if the first upload succeeded before the Worker crashed,
-an orphaned object. A bucket lifecycle rule cleans those up.
+treatment, so a transient storage error does not lose the data. The cost of a
+retry is a fresh key and, if the first upload succeeded before the Worker
+crashed, an orphaned object. A bucket lifecycle rule cleans those up.
 -->
 
 ---
@@ -82,30 +77,36 @@ heading: Fetch by key
 notes:
   - Takes the claim check back
   - Fetches the object by its key
-  - Reads the whole body back into a Buffer
+  - A missing key will not appear on retry. Fail it for good
 ---
 
 ::code::
 
-```ts {all|1|2-4|5-6}
-export async function fetchFromStorage(key: string): Promise<Buffer> {
-  const response = await s3.send(
-    new GetObjectCommand({ Bucket: BUCKET, Key: key }),
-  );
-  const bytes = await response.Body!.transformToByteArray();
-  return Buffer.from(bytes);
+```java {all|1|2|3-5}
+public byte[] fetchFromStorage(String key) {
+  byte[] bytes = blobs.get(BUCKET, key);
+  if (bytes == null) {
+    throw ApplicationFailure.newNonRetryableFailure("No object " + key, "NoSuchKey");
+  }
+  return bytes;
 }
 ```
 
 <!--
-Source: PPT slide 67. The original reassembled the stream chunk by chunk;
-`transformToByteArray()` is the AWS SDK v3 helper that does the same.
+Source: PPT slide 67, which reassembled a stream chunk by chunk; this reads
+the whole object, and adds the missing-key case.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/claimcheck/ClaimCheckStorage.java
 
 The mirror of the upload. Nothing clever.
 
-If the object is too large to hold in memory, stream it instead: `Body` is a
-readable stream, and the Activity can process it chunk by chunk, heartbeating
-as it goes.
+- **Build 3 - the missing key.** A network error is worth retrying; a key that
+  is not there will still not be there next time. A non-retryable
+  `ApplicationFailure` fails the Activity at once, with a type the Workflow can
+  match on. The tests behind this Deck check it.
+
+If the object is too large to hold in memory, stream it instead: read the
+store's `InputStream` and process it chunk by chunk, heartbeating as you go.
 -->
 
 ---
@@ -119,19 +120,20 @@ notes:
 
 ::code::
 
-```ts {all|2|4|5-6}
-export async function documentWorkflow(url: string): Promise<string> {
-  const key = await downloadDocument(url);
+```java {all|3|5|7}
+@Override
+public String process(String url) {
+  String key = activities.downloadDocument(url);
   try {
-    return await summarizeDocument(key);
+    return activities.summarizeDocument(key);
   } finally {
-    await deleteDocument(key);
+    activities.deleteDocument(key);
   }
 }
 ```
 
 <!--
-New to the TypeScript Deck.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/claimcheck/DocumentWorkflowImpl.java
 
 - **Build 1 - produce.** `downloadDocument` is an Activity: it downloads the
   file and calls `uploadToStorage` itself, so the bytes never leave the
@@ -145,59 +147,63 @@ New to the TypeScript Deck.
 - **Build 3 - clean up.** Temporal will not delete the object. Delete it in
   `finally` so it runs on the failure path too, or rely on a bucket lifecycle
   policy. If the Workflow is cancelled, run the delete inside
-  `CancellationScope.nonCancellable`, the same move as a saga compensation.
+  `Workflow.newDetachedCancellationScope(...)`, the same move as a saga
+  compensation.
 -->
 
 ---
 layout: code-walkthrough
 heading: Or let the SDK do it
 notes:
-  - "External Storage: the claim check, built into the data converter"
-  - A driver for your store. S3 and GCS drivers ship as packages
+  - "External Storage: the claim check, built into the client options"
+  - A driver for your store. An S3 driver ships as a package
   - Payloads at or over this size are offloaded. 256 KiB is the default
-  - Same converter on the Client and the Worker
+  - The Worker inherits it from the client it is built on
 ---
 
 ::code::
 
-```ts {all|2-5|3|4|8-9}
-const dataConverter = {
-  externalStorage: new ExternalStorage({
-    drivers: [driver],
-    payloadSizeThreshold: 256 * 1024,
-  }),
-};
+```java {all|1-5|3|4|7-10}
+ExternalStorage storage =
+    ExternalStorage.newBuilder()
+        .setDriver(driver)
+        .setPayloadSizeThreshold(256 * 1024)
+        .build();
 
-const client = new Client({ connection, dataConverter });
-const worker = await Worker.create({
-  connection: nativeConnection,
-  taskQueue,
-  workflowsPath,
-  activities,
-  dataConverter,
-});
+WorkflowClient client =
+    WorkflowClient.newInstance(
+        service, WorkflowClientOptions.newBuilder().setExternalStorage(storage).build());
+WorkerFactory factory = WorkerFactory.newInstance(client);
+Worker worker = factory.newWorker(taskQueue);
 ```
 
 <!--
-New to the TypeScript Deck. External Storage is in Public Preview: APIs and
-configuration may change before General Availability. Checked against
-@temporalio/common 1.24 and docs.temporal.io/external-storage.
+External Storage is marked `@Experimental` in the Java SDK 1.40: APIs and
+configuration may change. Checked against the 1.40 source; the tests behind
+this Deck offload a 1 MB Activity result through an in-memory driver and check
+that the Workflow still sees all 1 MB while the Event History holds only a
+small reference. (The 1.40 Javadoc on `setExternalStorage` still calls it a
+no-op; the test shows it is not.)
 
-The hand-rolled version is worth understanding. Since SDK 1.21 the SDK can do it
-for you, transparently, for every payload.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/claimcheck/ExternalStorageSetup.java
+and InMemoryDriver.java
 
-- **Build 1 - `ExternalStorage`.** Set on the data converter. Any payload over
-  the threshold is uploaded by a driver and replaced in the Event History by a
-  small reference; the receiving side downloads it again before your code sees
-  it. Workflow and Activity code do not change.
-- **Build 2 - the driver.** `@temporalio/external-storage-s3` and
-  `@temporalio/external-storage-gcs` ship with the SDK, or implement the
-  `StorageDriver` interface yourself: a `name`, a `type`, `store` and
-  `retrieve`.
+The hand-rolled version is worth understanding. The SDK can now do it for you,
+transparently, for every payload.
+
+- **Build 1 - `ExternalStorage`.** Set on `WorkflowClientOptions`. Any payload
+  over the threshold is uploaded by a driver and replaced in the Event History
+  by a small reference; the receiving side downloads it again before your code
+  sees it. Workflow and Activity code do not change.
+- **Build 2 - the driver.** `io.temporal:temporal-payload-storage-s3driver`
+  ships an S3 driver, or implement the `StorageDriver` interface yourself: a
+  `getName`, a `getType`, `store` and `retrieve`. Register several and add a
+  `StorageDriverSelector` to choose between them.
 - **Build 3 - the threshold.** 256 KiB by default. Set it to 0 to externalize
   everything, for example when data must stay in infrastructure you control.
-- **Build 4 - both sides.** A Client without it cannot read an offloaded
-  result.
+- **Build 4 - both sides.** Like the data converter, a `WorkerFactory` takes
+  External Storage from the client it is built on. A Client without it cannot
+  read an offloaded result.
 
 This segment now comes before Serialization and Encryption, so the room has not
 met the data converter yet. One sentence covers it: the data converter is the
@@ -205,8 +211,7 @@ SDK's hook for turning every argument and result into bytes on the way out and
 back on the way in; the Serialization segment comes back to it.
 
 It runs after the payload codec, so with an encryption codec the store only
-ever holds ciphertext. And like a codec, it runs outside the Workflow sandbox,
-so it takes the driver object directly rather than a module path.
+ever holds ciphertext.
 
 The same caveat as the hand-rolled version: you own the bucket's lifecycle.
 Keep objects for at least as long as the Workflow and its retention period.

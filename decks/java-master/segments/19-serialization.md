@@ -11,19 +11,18 @@ Everything that crosses the boundary gets converted.
 </ZiggyHero>
 
 <!--
-Source: PPT slides 59-60, `{{BLOCK:module-serialization-demo}}`. The JSON
-traps, custom payload converter and registration slides are new to the
-TypeScript Deck.
+Source: PPT slides 59-60, `{{BLOCK:module-serialization-demo}}`.
 
-PORTED: the original was a C# slide leaning on `[DataContract]` / `[DataMember]`.
-TypeScript has no such attributes, which is itself the point of this segment.
+The original slide leaned on serialization attributes. Java needs none: the
+default data converter is Jackson, and a plain record is enough. That is the
+point of this segment, and also where its traps come from.
 -->
 
 ---
 layout: code-walkthrough
 heading: Data serialization
 notes:
-  - Plain interfaces. No attribute, no decorator, no base class
+  - A record. No annotation, no base class, no <code class="ref">Serializable</code>
   - Workflow arguments are serialized by the Client and deserialized by the Worker
   - Activity arguments and results make the same trip
   - So does the Workflow result. Every value here makes a round trip through JSON
@@ -31,16 +30,13 @@ notes:
 
 ::code::
 
-```ts {all|1-5|7|9|11-12}
-export interface Claim {
-  patientId: string;
-  drugNdc: string;
-  billedAmountCents: number;
-}
+```java {all|1|4|6|8-9}
+public record Claim(String patientId, String drugNdc, long billedAmountCents) {}
 
-export async function claimWorkflow(claim: Claim): Promise<Result> {
+@Override
+public ClaimResult process(Claim claim) {
   // `claim` was JSON on the wire a moment ago
-  const result = await processClaim(claim);
+  ClaimResult result = activities.processClaim(claim);
 
   // and this crosses the wire on the way back out
   return result;
@@ -50,12 +46,18 @@ export async function claimWorkflow(claim: Claim): Promise<Result> {
 <!--
 Source: PPT slide 60.
 
-The default data converter is JSON. In TypeScript that means the ergonomics are
-excellent and the traps are quiet, so name the traps (next slide).
+Code: snippets/src/main/java/io/temporal/devdays/essentials/serialization/Claim.java
+and ClaimWorkflowImpl.java
 
-- **Build 1 - the shape.** Unlike .NET or Java, there is nothing to annotate.
-  An interface is erased at compile time; nothing checks at runtime that the
-  data matches it.
+The default data converter turns values into JSON with Jackson
+(`JacksonJsonPayloadConverter`). In Java that means the declared type does a
+lot of the work for you: Jackson reads the JSON back into exactly the type the
+method signature names. The traps are where the declared type says too little
+(next slide).
+
+- **Build 1 - the shape.** A record works as is: no annotation, no no-arg
+  constructor, no `Serializable`. A plain class works too; the SDK's
+  `ObjectMapper` reads fields directly, private ones included.
 - **Build 2 - arguments in.** Serialized by the Client, deserialized by the
   Worker, and they may be different processes on different machines.
 - **Build 3 - Activity calls.** `processClaim` is an Activity: its argument is
@@ -65,8 +67,10 @@ excellent and the traps are quiet, so name the traps (next slide).
 - **Build 4 - results out.** Same trip in reverse, to whoever is waiting on the
   Workflow.
 
-The default converter handles `undefined`, `Uint8Array` (as raw bytes), and
-anything `JSON.stringify` can handle, in that order.
+The default converter tries, in order: `null`, `byte[]` (as raw bytes),
+protobuf messages, and then Jackson JSON for everything else. The SDK's
+`ObjectMapper` already registers the `java.time` and `Optional` modules, and
+writes dates as ISO strings.
 
 Payload size matters: every argument and result is stored in the Event
 History, and Temporal rejects a single payload over 2 MB by default. That is
@@ -77,169 +81,184 @@ the problem the Claim-Check segment already solved.
 layout: code-walkthrough
 heading: What JSON does to your values
 notes:
-  - A Date, a Set and an undefined property go in
-  - The Date comes back a string. TypeScript still says <code>Date</code>
-  - The Set comes back an empty object
-  - The undefined property is gone
+  - A ZonedDateTime and a loosely typed map go in
+  - "<code>Europe/Paris</code> is gone. The time comes back with a bare offset"
+  - "<code>copayCents</code> went in a Long and comes back an Integer"
+  - "<code>seenAt</code> went in an Instant and comes back a String"
 ---
 
 ::code::
 
-```ts {all|4-6|13|14|15}
-const received = await client.workflow.execute(echo, {
-  args: [
-    {
-      at: new Date("2026-01-01T09:00:00Z"),
-      tags: new Set(["urgent"]),
-      copay: undefined,
-    },
-  ],
-  taskQueue,
-  workflowId,
-});
+```java {all|3-7|4|6|7}
+Visit received =
+    echo.echo(
+        new Visit(
+            ZonedDateTime.of(2026, 1, 1, 9, 0, 0, 0, ZoneId.of("Europe/Paris")),
+            Map.of(
+                "copayCents", 1_500L,
+                "seenAt", Instant.parse("2026-01-01T09:30:00Z"))));
 
-received.at; // "2026-01-01T09:00:00.000Z": a string, typed as Date
-received.tags; // {}: the Set is gone
-"copay" in received; // false: undefined properties are dropped
+received.at(); // 2026-01-01T09:00+01:00: the zone ID is gone
+received.extras().get("copayCents"); // 1500: an Integer now, not a Long
+received.extras().get("seenAt"); // "2026-01-01T09:30:00Z": a String
 ```
 
 <!--
-New to the TypeScript Deck. `echo` is a Workflow that returns its argument,
-and the tests behind this Deck assert each of these three results.
+`echo` is a Workflow that returns its argument, and `Visit` is
+`record Visit(ZonedDateTime at, Map<String, Object> extras)`. The tests behind
+this Deck assert each of the three results in the comments.
 
-- **Build 1 - the input.** Three ordinary values, all legal TypeScript for the
-  `Visit` type the Workflow declares.
-- **Build 2 - the Date.** It goes in as a `Date` and comes out as an ISO
-  string, and the compiler will not warn you, because the *type* still says
-  `Date`. Call `received.at.getTime()` and it throws at runtime. The same is
-  true inside the Workflow: the argument it receives has a string there too.
-- **Build 3 - the Set.** `Map` and `Set` serialize as `{}`. The contents are
-  silently lost.
-- **Build 4 - undefined.** The property is dropped entirely, not set to
-  `undefined`.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/serialization/JsonTraps.java
 
-Two more traps that follow from "it is JSON":
+- **Build 1 - the input.** Ordinary values, all legal for the `Visit` type the
+  Workflow declares.
+- **Build 2 - the zone.** The SDK's `ObjectMapper` writes a `ZonedDateTime` as
+  an ISO string with its offset, not its zone ID. It comes back as the same
+  instant at `+01:00`, so `equals` against the original is false, and anything
+  that depends on the zone's rules (the next daylight-saving change, say) is
+  now wrong. The Workflow receives the same thing.
+- **Build 3 - the Long.** Inside `Map<String, Object>` there is no declared
+  type, so Jackson picks one: a number that fits in an int comes back an
+  `Integer`. Cast it to `Long` and you get a `ClassCastException` at runtime.
+- **Build 4 - the Instant.** Same cause: no declared type, so the ISO string
+  stays a `String`. Nested objects come back as `LinkedHashMap`.
 
-- A class instance arrives as a plain object. Methods are gone and
-  `instanceof` is false.
-- A `BigInt` fails before anything is sent: `JSON.stringify` cannot handle it,
-  so `start` throws "Unable to convert ... to payload".
+One more trap that follows from "the declared type does the work": declare a
+field as an interface (a sealed `Payment` with `Card` and `Cash` records, say)
+and Jackson cannot read it back. It throws "Cannot construct instance of ...
+abstract types either need to be mapped to concrete types". Writing it works
+fine, so the error surfaces wherever the value is read: in the Worker, not in
+the Client that sent it.
 
-The rule to give them: pass data, not objects. If the Workflow needs behaviour,
-it imports the function; it does not receive it. Dates go over as ISO strings
-or epoch numbers, typed as such.
+The rule to give them: pass data, with concrete types. Records of records,
+`List` and `Map` with real type parameters, `Instant` or `OffsetDateTime` for
+time, the zone as its own `String` if you need it.
 -->
 
 ---
 layout: code-walkthrough
 heading: A custom payload converter
 notes:
-  - "<code>encodingType</code> names the format in each Payload's metadata"
-  - "<code>toPayload</code>: value to bytes. <code>tagDates</code> wraps each Date before JSON flattens it"
+  - The SDK's own <code>ObjectMapper</code> setup, plus one feature. Keep the zone ID
+  - "<code>getEncodingType</code> names the format in each Payload's metadata"
+  - "<code>toData</code>: value to bytes"
   - The encoding travels with the bytes
-  - "<code>fromPayload</code>: bytes back to a value, Dates revived"
+  - "<code>fromData</code>: bytes back to a value of the declared type"
   - Tried in order. The first converter that accepts the value wins
 ---
 
 ::code::
 
-```ts {all|2|4-9|7|12-14|17-21}
-class DateJsonConverter implements PayloadConverterWithEncoding {
-  readonly encodingType = "json/dated";
+```java {all|2-4|6-8|10-16|14|22-25|32-36}
+public class ZonedJsonConverter implements PayloadConverter {
+  private final ObjectMapper mapper =
+      JacksonJsonPayloadConverter.newDefaultObjectMapper()
+          .enable(SerializationFeature.WRITE_DATES_WITH_ZONE_ID);
 
-  toPayload(value: unknown): Payload | undefined {
-    if (value === undefined) return undefined;
-    return {
-      metadata: { [METADATA_ENCODING_KEY]: encode(this.encodingType) },
-      data: encode(JSON.stringify(value, tagDates)),
-    };
+  public String getEncodingType() {
+    return "json/zoned";
   }
 
-  fromPayload<T>(payload: Payload): T {
-    return JSON.parse(decode(payload.data!), reviveDates);
+  public Optional<Payload> toData(Object value) {
+    try {
+      return Optional.of(
+          Payload.newBuilder()
+              .putMetadata("encoding", ByteString.copyFromUtf8(getEncodingType()))
+              .setData(ByteString.copyFrom(mapper.writeValueAsBytes(value)))
+              .build());
+    } catch (JsonProcessingException e) {
+      throw new DataConverterException(e);
+    }
+  }
+
+  public <T> T fromData(Payload payload, Class<T> type, Type genericType) {
+    try {
+      return mapper.readValue(
+          payload.getData().toByteArray(), mapper.constructType(genericType));
+    } catch (IOException e) {
+      throw new DataConverterException(e);
+    }
   }
 }
 
-export const payloadConverter = new CompositePayloadConverter(
-  new UndefinedPayloadConverter(),
-  new BinaryPayloadConverter(),
-  new DateJsonConverter(),
-);
+DataConverter converter =
+    new DefaultDataConverter(
+        new NullPayloadConverter(),
+        new ByteArrayPayloadConverter(),
+        new ZonedJsonConverter());
 ```
 
 <!--
-New to the TypeScript Deck. Checked against @temporalio/common 1.24; the
-imports and the three small helpers (`encode`, `tagDates`, `reviveDates`) are
-cut for room.
+Checked against the Java SDK 1.40 source. Imports are cut for room.
 
-When JSON is not enough, the payload converter is the extension point. This one
-keeps Dates as Dates.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/serialization/ZonedJsonConverter.java
+and SerializationSetup.java
 
-- **Build 1 - `encodingType`.** Every Payload carries its encoding in its
+When the default is not enough, the payload converter is the extension point.
+This one keeps zone IDs.
+
+- **Build 1 - the mapper.** `newDefaultObjectMapper()` is the exact setup the
+  SDK's own JSON converter uses (`java.time`, `Optional`, field access). One
+  feature on top: write the zone ID after the offset.
+- **Build 2 - `getEncodingType`.** Every Payload carries its encoding in its
   metadata, so the receiving side knows which converter to hand it to.
-- **Build 2 - `toPayload`.** Value to bytes. `tagDates` is a `JSON.stringify`
-  replacer that turns each `Date` into `{ $date: "..." }` before JSON flattens
-  it to a plain string. Returning `undefined` means "not mine, try the next
-  converter".
-- **Build 3 - the metadata.** That `json/dated` label is how the other side
+- **Build 3 - `toData`.** Value to bytes. Returning `Optional.empty()` means
+  "not mine, try the next converter"; this one takes everything.
+- **Build 4 - the metadata.** That `json/zoned` label is how the other side
   finds this converter again.
-- **Build 4 - `fromPayload`.** Bytes back to a value; the reviver turns each
-  `$date` back into a `Date`.
-- **Build 5 - composition.** `CompositePayloadConverter` tries converters in
-  order on the way out, and picks by encoding on the way in. This one replaces
-  the default JSON converter; the other two are the SDK's own.
+- **Build 5 - `fromData`.** Bytes back to a value, of the type the method
+  signature declares: `genericType` keeps type parameters such as
+  `List<Visit>`.
+- **Build 6 - composition.** `DefaultDataConverter` tries converters in order
+  on the way out, and picks by encoding on the way in. This list replaces the
+  default JSON converter; the other two are the SDK's own.
 
-The TypeScript-specific part: this module runs *inside the Workflow sandbox*,
+The Java-specific part: the data converter runs on the Workflow thread,
 because the Workflow itself serializes Activity arguments. So it must be
-deterministic and sandbox-safe: no Node built-ins, no I/O, nothing async. That
-is why the methods are synchronous. Anything that needs I/O, like encryption
-with a KMS, belongs in a payload codec instead (next segment).
+deterministic: no I/O, no clock, no randomness. Encryption with a KMS belongs in
+a payload codec instead (next segment).
 
-Alternatives worth naming: the SDK ships `DefaultPayloadConverterWithProtobufs`
-for protobuf messages. For most teams, the cheaper fix is the rule from the
-last slide: pass ISO strings.
+Alternatives worth naming: if all you need is a different `ObjectMapper`, pass
+it to `new JacksonJsonPayloadConverter(mapper)` and swap it in with
+`DefaultDataConverter.newDefaultInstance().withPayloadConverterOverrides(...)`,
+which replaces the converter with the same encoding. For most teams, the
+cheaper fix is the rule from the last slide: use concrete types.
 -->
 
 ---
 layout: code-walkthrough
 heading: Register it on both sides
 notes:
-  - A <strong>path</strong>, not an object. The Worker bundles this module into the Workflow sandbox
+  - An object on the client options, not a path
   - The Client converts Workflow arguments and reads results
-  - The Worker converts everything else, in and out of the sandbox
+  - The Worker inherits the converter from the client it is built on
 ---
 
 ::code::
 
-```ts {all|2|5|6-11}
-const dataConverter = {
-  payloadConverterPath: require.resolve("./payload-converter"),
-};
+```java {all|1-2|4|5-6}
+WorkflowClientOptions options =
+    WorkflowClientOptions.newBuilder().setDataConverter(converter).build();
 
-const client = new Client({ connection, dataConverter });
-const worker = await Worker.create({
-  connection: nativeConnection,
-  taskQueue,
-  workflowsPath,
-  dataConverter,
-});
+WorkflowClient client = WorkflowClient.newInstance(service, options);
+WorkerFactory factory = WorkerFactory.newInstance(client);
+Worker worker = factory.newWorker(taskQueue);
 ```
 
 <!--
-New to the TypeScript Deck.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/serialization/SerializationSetup.java
 
-- **Build 1 - the path.** Other SDKs take a converter object. TypeScript takes a
-  module path, because the Workflow sandbox is a separate V8 context: the
-  Worker bundles the module named here into the Workflow code, and loads it
-  again on the main thread for Activities. The module must have a named export
-  called `payloadConverter`.
+- **Build 1 - the options.** `setDataConverter` on `WorkflowClientOptions`
+  takes the converter object itself.
 - **Build 2 - the Client.** Workflow arguments, Signal and Update arguments,
   Query and Workflow results.
-- **Build 3 - the Worker.** Activity arguments and results, and the Workflow's
-  own inputs and outputs.
+- **Build 3 - the Worker.** A `WorkerFactory` takes its data converter from the
+  `WorkflowClient` it is built on, so Activity arguments and results, and the
+  Workflow's own inputs and outputs, use the same one. There is no separate
+  Worker setting.
 
-Register the same converter everywhere. A Client without it gets a Payload
-whose encoding it does not recognise and throws "Unknown encoding" when it
-reads the result. If you bundle Workflow code ahead of time with
-`bundleWorkflowCode`, pass `payloadConverterPath` there too.
+Register the same converter in every process: the starter, the Worker, and
+anything that reads results. A Client without it gets a Payload whose encoding
+it does not recognise and throws "No PayloadConverter is registered for an
+encoding: json/zoned" when it reads the result. At runtime, not compile time.
 -->
