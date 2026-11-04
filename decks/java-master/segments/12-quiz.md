@@ -9,7 +9,7 @@ layout: section
 </ZiggyHero>
 
 <!--
-Source: PPT slides 86-96. Ported from the Python Deck.
+Source: PPT slides 86-96.
 
 Ten questions. Read each one, give the room ten seconds, take a show of hands
 or a shout, then click to reveal. Every wrong answer that gets said aloud is a
@@ -28,7 +28,7 @@ layout: default
 - a) It can make HTTP calls directly to external services
 - b) It must be deterministic and produce the same result on replay
 - c) It runs on a separate server managed by Temporal Cloud
-- d) It executes Activities synchronously, blocking until each completes
+- d) It can start its own threads with `new Thread(...)` to run steps in parallel
 
 <p v-click class="quiz-answer">Answer: <strong>b</strong></p>
 
@@ -36,8 +36,9 @@ layout: default
 Source: PPT slide 87.
 
 Why the others are wrong: (a) HTTP belongs in an Activity. (c) Workflow code
-runs in your Workers, never on the Server. (d) it awaits Activities, but the
-Workflow is suspended, not blocking a thread, and it can run several at once.
+runs in your Workers, never on the Server. (d) parallelism in a Workflow comes
+from `Async.function` and `Promise`, which run on the SDK's own deterministic
+threads. A thread you start yourself is invisible to replay.
 -->
 
 ---
@@ -84,29 +85,33 @@ databases. Your Activities do.
 layout: default
 ---
 
-# 4. Workflow code runs in a deterministic V8 isolate. What does that mean?
+# 4. Java Workflow code must be deterministic. What does that mean in practice?
 
-- a) Each Workflow runs in its own Node.js process, with full access to Node APIs
-- b) `Math.random()` and `Date.now()` are deterministic, and Node built-ins and network I/O are unavailable
-- c) Workflow code must be written in plain JavaScript, not TypeScript
-- d) The isolate runs on the Temporal Server, so your Workers never execute Workflow code
+- a) Each Workflow runs in its own JVM, with full access to the Java standard library
+- b) Use `Workflow.sleep`, `Workflow.currentTimeMillis()` and `Workflow.newRandom()` instead of `Thread.sleep`, `System.currentTimeMillis()` and `new Random()`, and do no I/O
+- c) Workflow classes must be stateless: fields are lost on replay, so keep state in a database
+- d) The Temporal Server runs Workflow code, so your Workers never execute it
 
 <p v-click class="quiz-answer">Answer: <strong>b</strong></p>
 
 <!--
-Source: PPT slide 90, rewritten for the TypeScript SDK.
+Source: PPT slide 90, rewritten for the Java SDK.
 
 The original asked why a Workflow cannot call an external API directly. The
 answer is the same, determinism: a direct call could return something different
-on replay and break history. In TypeScript the rule is enforced, not just
-written down. The Worker bundles Workflow code and runs it in a V8 isolate
-where `Math.random()` is seeded per Workflow Execution, `Date.now()` returns
-the time of the current Workflow Task, and Node built-ins such as `fs` or
-`http` cannot be imported. The fix for every one of these is the same: put it in
-an Activity.
+on replay and break history. In Java the rule is yours to keep: there is no
+sandbox, and the compiler will not stop you calling `System.currentTimeMillis()`.
+The `Workflow` class gives you deterministic replacements:
+`Workflow.currentTimeMillis()` returns the time of the current Workflow Task,
+`Workflow.newRandom()` is seeded per Workflow Execution, and `Workflow.sleep`
+is a durable Timer. Break the rule and replay notices: the Worker throws a
+`NonDeterministicException` and the Workflow Task retries until you fix the
+code. Anything that touches the outside world, a file, a socket, an HTTP call,
+goes in an Activity.
 
-(a) is the Activity side: Activities are ordinary Node. (c) TypeScript compiles
-away before the bundle runs. (d) Workflow code only ever runs in your Workers.
+(a) is the Activity side: Activities are ordinary Java. (c) is the opposite of
+the truth: fields are exactly where Workflow state lives, and replay rebuilds
+them. (d) Workflow code only ever runs in your Workers.
 -->
 
 ---
@@ -125,7 +130,7 @@ layout: default
 <!--
 Source: PPT slide 91.
 
-The nuance: Temporal notices when the Activity's `startToCloseTimeout` (or its
+The nuance: Temporal notices when the Activity's Start-To-Close Timeout (or its
 Heartbeat Timeout, if it heartbeats) expires. That is why the timeout matters,
 and why long Activities should heartbeat: the heartbeating segment.
 -->
@@ -136,10 +141,10 @@ layout: default
 
 # 6. Which of these belongs in an Activity, not a Workflow?
 
-- a) `await submitOrder(order)`, from `proxyActivities`
-- b) `await Promise.all([task1, task2, task3])`
-- c) `await paymentService.charge(orderId, amount)`
-- d) `await condition(() => approved)`
+- a) `activities.submitOrder(order)`, on a stub from `Workflow.newActivityStub`
+- b) `Promise.allOf(task1, task2, task3).get()`
+- c) `paymentService.charge(orderId, amount)`
+- d) `Workflow.await(() -> approved)`
 
 <p v-click class="quiz-answer">Answer: <strong>c</strong></p>
 
@@ -147,15 +152,16 @@ layout: default
 Source: PPT slide 92.
 
 (a), (b) and (d) are all Workflow-safe: (a) schedules an Activity through
-Temporal rather than calling it. (c) talks to the outside world. It might
-charge the card twice on replay, or not at all.
+Temporal rather than calling it, and (b) waits on `io.temporal.workflow.Promise`,
+not a `CompletableFuture`. (c) talks to the outside world. It might charge the
+card twice on replay, or not at all.
 -->
 
 ---
 layout: default
 ---
 
-# 7. `startToCloseTimeout` on an Activity controls:
+# 7. `setStartToCloseTimeout` in an Activity's `ActivityOptions` controls:
 
 - a) How long the entire Workflow may run before timing out
 - b) How long a single attempt of the Activity may run before Temporal considers it failed
@@ -168,7 +174,7 @@ layout: default
 Source: PPT slide 93.
 
 It resets on every retry. The deadline across all attempts is
-`scheduleToCloseTimeout`. (c) is the Retry Policy's `initialInterval`.
+`setScheduleToCloseTimeout`. (c) is `RetryOptions`' `setInitialInterval`.
 -->
 
 ---
@@ -179,8 +185,8 @@ layout: default
 
 - a) Both should use identical Retry Policies for consistency
 - b) The email check should have a longer timeout, because it's more critical
-- c) The charge should have a higher `maximumAttempts`, because it costs more and fails more
-- d) The charge should have a longer `startToCloseTimeout` and more conservative backoff
+- c) The charge should have a higher `setMaximumAttempts`, because it costs more and fails more
+- d) The charge should have a longer `setStartToCloseTimeout` and more conservative backoff
 
 <p v-click class="quiz-answer">Answer: <strong>d</strong></p>
 
@@ -188,7 +194,7 @@ layout: default
 Source: PPT slide 94.
 
 The point is that policy is per Activity, set by the Workflow: two
-`proxyActivities` calls with different options. (c) is tempting;
+`Workflow.newActivityStub` calls with different `ActivityOptions`. (c) is tempting;
 the answer is that more attempts on a slow external partner is how you get
 rate limited. Give it time, not volume.
 -->
@@ -197,7 +203,7 @@ rate limited. Give it time, not volume.
 layout: default
 ---
 
-# 9. `ApplicationFailure.nonRetryable(...)` tells Temporal to:
+# 9. `ApplicationFailure.newNonRetryableFailure(...)` tells Temporal to:
 
 - a) Retry the Activity immediately without waiting
 - b) Skip the Activity and continue to the next step
@@ -209,8 +215,8 @@ layout: default
 <!--
 Source: PPT slide 95.
 
-The Workflow still receives it, as an `ActivityFailure` whose `cause` is the
-`ApplicationFailure`, and decides what to do. In the Web UI's timeline it shows
+The Workflow still receives it, as an `ActivityFailure` whose `getCause()` is
+the `ApplicationFailure`, and decides what to do. In the Web UI's timeline it shows
 as one failed attempt and no retries.
 -->
 

@@ -4,7 +4,7 @@ layout: section
 
 <ZiggyHero scene="signal">
 
-# TypeScript Signals
+# Java Signals
 
 Asynchronous write / fire-and-forget
 
@@ -17,80 +17,93 @@ The human-in-the-loop primitive. If the room is here for approvals, reviews, or
 anything with a person in it, this is the segment they came for.
 
 The original split the Signal into an interface slide and an implementation
-slide. In TypeScript the Signal is a definition at module level plus a handler
-inside the Workflow function, so it is one walkthrough.
+slide. Java has the same two halves, a `@SignalMethod` on the
+`@WorkflowInterface` and its implementation in the class, so they sit together
+in one walkthrough.
 -->
 
 ---
 layout: code-walkthrough
-heading: TypeScript Signals
+heading: Java Signals
 notes:
-  - "<code>defineSignal</code> at <strong>module level</strong>: the name Temporal routes on, and the argument types"
-  - Signals return <strong>nothing</strong>. They deliver data in, they do not read it out
-  - Workflow state is plain local variables inside the Workflow function
-  - "<code>setHandler</code> connects the definition to a handler, inside the Workflow"
-  - Mutate state. The waiting Workflow body sees the change and resumes
+  - "<code>@SignalMethod</code> on the <strong>interface</strong>: the method name is what Temporal routes on"
+  - "Signals return <strong>nothing</strong>: <code>void</code>. They deliver data in, they do not read it out"
+  - Workflow state is plain fields on the implementation
+  - "The handler is the class's implementation of <code>approveWire</code>"
+  - Mutate state. The waiting Workflow method sees the change and resumes
   - The Workflow blocks here, durably, until the condition is true
 ---
 
 ::code::
 
-```ts {all|3|3|8-9|11|12-13|16}
-import { condition, defineSignal, setHandler } from "@temporalio/workflow";
+```java {all|6-7|7|11-12|21|22-23|16}
+@WorkflowInterface
+public interface WireTransferWorkflow {
+  @WorkflowMethod
+  String transfer(WireTransfer wire);
 
-export const approveWire = defineSignal<[string]>("approveWire");
+  @SignalMethod
+  void approveWire(String officer);
+}
 
-export async function wireTransferWorkflow(
-  wire: WireTransfer,
-): Promise<string> {
-  let approved = false;
-  let approver = "";
+public class WireTransferWorkflowImpl implements WireTransferWorkflow {
+  private boolean approved = false;
+  private String approver = "";
 
-  setHandler(approveWire, (officer: string) => {
+  @Override
+  public String transfer(WireTransfer wire) {
+    Workflow.await(() -> approved);
+    return wire.wireId() + " approved by " + approver;
+  }
+
+  @Override
+  public void approveWire(String officer) {
     approved = true;
     approver = officer;
-  });
-
-  await condition(() => approved);
-  return `${wire.wireId} approved by ${approver}`;
+  }
 }
 ```
 
 <!--
 Source: PPT slides 72-79.
-Code: snippets/src/signals.workflows.ts, run by
-snippets/tests/runtime/signals.test.ts.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/signals/WireTransferWorkflow.java
+and WireTransferWorkflowImpl.java, run by SignalsTest.
 
 The scenario: a wire transfer over the bank's review threshold cannot leave
 until a compliance officer signs off. The Workflow holds the wire; the officer's
 review tool sends `approveWire` with their name.
 
-- **Build 1 - the definition.** A standalone constant, exported so the Client
-  can import it too. The string `"approveWire"` is what Temporal routes on. The type
-  parameter `<[string]>` is a tuple of the handler's arguments, which is why it
-  is in brackets. The arguments are serializable, and they are what gets
-  recorded in Event History as a `WorkflowExecutionSignaled` Event; on replay,
-  the handler runs again with the same value.
-- **Build 2 - no return type.** Builds 1 and 2 point at the same line on
-  purpose: `defineSignal` takes argument types only. A Signal is
+- **Build 1 - the declaration.** `@SignalMethod` on the Workflow interface, so
+  the Client's stub and the Worker share it. The method name, `approveWire`, is
+  what Temporal routes on; `@SignalMethod(name = "...")` overrides it. The
+  arguments are serializable, and they are what gets recorded in Event History
+  as a `WorkflowExecutionSignaled` Event; on replay, the handler runs again with
+  the same value.
+- **Build 2 - `void`.** Builds 1 and 2 point at the same line on purpose. The
+  SDK refuses a `@SignalMethod` that returns anything. A Signal is
   fire-and-forget: the sender gets an acknowledgement that it was recorded, not
   a result. If you need a result, that is an Update, two segments from now.
-- **Build 3 - state.** Plain `let` variables. Temporal rebuilds them by replay,
-  so they survive a Worker restart without you storing anything.
-- **Build 4 - `setHandler`.** Definition outside, handler inside. Register it at
-  the top of the Workflow, before the first `await`. A Signal that arrives
-  before its handler exists is buffered and delivered once you register it, so
-  nothing is lost either way.
-- **Build 5 - mutate.** The handler just sets state. Signal handlers may also be
-  `async` and await Activities or Timers; if they do, have the Workflow wait on
-  `condition(allHandlersFinished)` before it returns, so it does not complete
-  under a running handler. A flag plus `condition` is the simplest shape and the
-  one to teach first.
-- **Build 6 - `condition`.** The equivalent of the original's
+- **Build 3 - state.** Plain fields. The Worker creates one instance per
+  Workflow Execution and rebuilds its fields by replay, so they survive a Worker
+  restart without you storing anything. Initialize them in the declaration (or
+  a `@WorkflowInit` constructor), not in the Workflow method: a Signal can
+  arrive in the same Workflow Task as the start, and the handler must not see
+  half-built state.
+- **Build 4 - the handler.** Just the implementation of the interface method.
+  The SDK registers it when it creates the instance, so there is no "register
+  it in time" problem.
+- **Build 5 - mutate.** The handler just sets state. No `synchronized`, no
+  `volatile`: the SDK runs a Workflow's threads one at a time, deterministically.
+  Signal handlers may also block, calling Activities or `Workflow.sleep`; if
+  they do, have the Workflow method wait on
+  `Workflow.await(() -> Workflow.isEveryHandlerFinished())` before it returns,
+  so it does not complete under a running handler. A flag plus `Workflow.await`
+  is the simplest shape and the one to teach first.
+- **Build 6 - `Workflow.await`.** The equivalent of the original's
   `Workflow.await { approved }`. The Workflow is suspended here: no CPU, no
   Worker slot, and it can be evicted from the Worker's cache and rebuilt by
-  replay later. It can wait over a weekend for compliance to come back. If the Worker restarts, it replays to this
-  line and waits again.
+  replay later. It can wait over a weekend for compliance to come back. If the
+  Worker restarts, it replays to this line and waits again.
 
 Worth saying: the Server accepts a Signal even if no Worker is running. It waits
 in Event History until a Worker picks the Workflow up.
