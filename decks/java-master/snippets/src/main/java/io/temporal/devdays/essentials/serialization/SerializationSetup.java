@@ -16,7 +16,7 @@ public final class SerializationSetup {
 
   /** The SDK's null and bytes converters, then ours in place of the default JSON one. */
   public static DataConverter dataConverter() {
-    // part: 19-serialization.md "A custom payload converter" 2
+    // part: 19-serialization.md "A custom payload converter: reading it back" 2
     DataConverter converter =
         new DefaultDataConverter(
             new NullPayloadConverter(),

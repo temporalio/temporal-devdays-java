@@ -230,8 +230,8 @@ heading: Labs
 ---
 
 - [Child Workflows](https://play.instruqt.com/temporal/tracks/child-workflows-java) · 15 min
-- [Heartbeats](https://play.instruqt.com/temporal/tracks/heartbeats-java) · 10 min
 - [Continue-As-New](https://play.instruqt.com/temporal/tracks/continue-as-new-java) · 10 min
+- [Heartbeats](https://play.instruqt.com/temporal/tracks/heartbeats-java) · 10 min
 
 <!--
 The labs for the three sections just taught, in this order. Each is its own
@@ -242,15 +242,15 @@ is 30.
   children five deep and follow a failure up from the bottom, fan out and watch
   the default Parent Close Policy terminate every child, then write the fan in
   with Async.function and Promise.allOf.
+- **Continue-As-New** (workshops/continue-as-new-subscription): a 30-cycle
+  subscription is terminated by the Service at its history limit, then rolls
+  over on isContinueAsNewSuggested() and finishes. The lab's dev server lowers the
+  limits to 40 and 200 Events so both happen in seconds.
 - **Heartbeats** (workshops/heartbeats-shipment): crash a Worker ten items into
   a packing job and watch the retry wait out the start-to-close timeout and
   start again at item 0; then add setHeartbeatTimeout, heartbeat(packed) and a
   resume from getHeartbeatDetails, crash it again, and watch the retry start in
   seconds where it left off.
-- **Continue-As-New** (workshops/continue-as-new-subscription): a 30-cycle
-  subscription is terminated by the Service at its history limit, then rolls
-  over on isContinueAsNewSuggested() and finishes. The lab's dev server lowers the
-  limits to 40 and 200 Events so both happen in seconds.
 
 Leave this slide up while people open the labs.
 -->

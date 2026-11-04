@@ -19,9 +19,9 @@ public class WorkerApp {
     WorkflowClient client = WorkflowClient.newInstance(service);
     WorkerFactory factory = WorkerFactory.newInstance(client);
 
-    Worker worker = factory.newWorker("order-task-queue");
-    worker.registerWorkflowImplementationTypes(OrderWorkflowImpl.class);
-    worker.registerActivitiesImplementations(new OrderActivitiesImpl());
+    Worker worker = factory.newWorker("transfers");
+    worker.registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
+    worker.registerActivitiesImplementations(new BankActivitiesImpl());
 
     factory.start();
   }

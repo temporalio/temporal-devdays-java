@@ -143,13 +143,11 @@ notes:
   - "<code>getEncodingType</code> names the format in each Payload's metadata"
   - "<code>toData</code>: value to bytes"
   - The encoding travels with the bytes
-  - "<code>fromData</code>: bytes back to a value of the declared type"
-  - Tried in order. The first converter that accepts the value wins
 ---
 
 ::code::
 
-```java {all|2-4|6-8|10-16|14|22-25|32-36}
+```java {all|2-4|6-8|10-16|14}
 public class ZonedJsonConverter implements PayloadConverter {
   private final ObjectMapper mapper =
       JacksonJsonPayloadConverter.newDefaultObjectMapper()
@@ -170,29 +168,13 @@ public class ZonedJsonConverter implements PayloadConverter {
       throw new DataConverterException(e);
     }
   }
-
-  public <T> T fromData(Payload payload, Class<T> type, Type genericType) {
-    try {
-      return mapper.readValue(
-          payload.getData().toByteArray(), mapper.constructType(genericType));
-    } catch (IOException e) {
-      throw new DataConverterException(e);
-    }
-  }
-}
-
-DataConverter converter =
-    new DefaultDataConverter(
-        new NullPayloadConverter(),
-        new ByteArrayPayloadConverter(),
-        new ZonedJsonConverter());
 ```
 
 <!--
-Checked against the Java SDK 1.40 source. Imports are cut for room.
+Checked against the Java SDK 1.40 source. Imports are cut for room, and the
+class carries on onto the next slide.
 
 Code: snippets/src/main/java/io/temporal/devdays/essentials/serialization/ZonedJsonConverter.java
-and SerializationSetup.java
 
 When the default is not enough, the payload converter is the extension point.
 This one keeps zone IDs.
@@ -206,10 +188,43 @@ This one keeps zone IDs.
   "not mine, try the next converter"; this one takes everything.
 - **Build 4 - the metadata.** That `json/zoned` label is how the other side
   finds this converter again.
-- **Build 5 - `fromData`.** Bytes back to a value, of the type the method
+-->
+
+---
+layout: code-walkthrough
+heading: "A custom payload converter: reading it back"
+notes:
+  - "<code>fromData</code>: bytes back to a value of the declared type"
+  - Tried in order. The first converter that accepts the value wins
+---
+
+::code::
+
+```java {all|1-4|10-14}
+public <T> T fromData(Payload payload, Class<T> type, Type genericType) {
+  try {
+    return mapper.readValue(
+        payload.getData().toByteArray(), mapper.constructType(genericType));
+  } catch (IOException e) {
+    throw new DataConverterException(e);
+  }
+}
+
+DataConverter converter =
+    new DefaultDataConverter(
+        new NullPayloadConverter(),
+        new ByteArrayPayloadConverter(),
+        new ZonedJsonConverter());
+```
+
+<!--
+Code: snippets/src/main/java/io/temporal/devdays/essentials/serialization/ZonedJsonConverter.java
+(the rest of the class) and SerializationSetup.java.
+
+- **Build 1 - `fromData`.** Bytes back to a value, of the type the method
   signature declares: `genericType` keeps type parameters such as
   `List<Visit>`.
-- **Build 6 - composition.** `DefaultDataConverter` tries converters in order
+- **Build 2 - composition.** `DefaultDataConverter` tries converters in order
   on the way out, and picks by encoding on the way in. This list replaces the
   default JSON converter; the other two are the SDK's own.
 

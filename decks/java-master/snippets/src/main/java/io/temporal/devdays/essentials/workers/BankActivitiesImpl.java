@@ -6,12 +6,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Not on a slide. Registered as an instance: this one object serves every Activity Task the Worker
  * runs, so shared state must be thread-safe.
  */
-public class OrderActivitiesImpl implements OrderActivities {
+public class BankActivitiesImpl implements BankActivities {
   public final AtomicInteger submitted = new AtomicInteger();
 
   @Override
-  public String submitOrder(String orderId) {
+  public String submitTransfer(String transferId) {
     submitted.incrementAndGet();
-    return orderId + " submitted";
+    return transferId + " submitted";
   }
 }

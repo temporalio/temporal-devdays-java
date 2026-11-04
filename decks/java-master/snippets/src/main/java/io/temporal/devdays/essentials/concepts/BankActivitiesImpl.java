@@ -8,7 +8,7 @@ import java.util.List;
  * Plain Java, free to touch the world. The Worker is handed one instance and calls it directly on
  * its Activity threads; {@link #CALLS} records what ran, for the runtime test.
  */
-public class TransferActivitiesImpl implements TransferActivities {
+public class BankActivitiesImpl implements BankActivities {
   public static final List<String> CALLS = Collections.synchronizedList(new ArrayList<>());
 
   @Override

@@ -148,8 +148,7 @@ Code: snippets/src/main/java/io/temporal/devdays/essentials/history/ReplayAwareT
 uses every row once; EventHistoryTest checks each does what the table says and
 that the history replays cleanly.
 
-The original listed `Workflow.sleep`, `Workflow.await`, `Workflow.allOf`,
-`Workflow.anyOf` and `Workflow.newTimer`. In the current Java SDK:
+In the Java SDK:
 
 - `Workflow.sleep(Duration)` is a durable Timer. A Workflow can sleep for
   thirty days and it costs nothing while it waits. `Thread.sleep` in a

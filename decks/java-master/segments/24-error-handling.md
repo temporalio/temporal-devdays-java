@@ -12,9 +12,6 @@ What fails, how it surfaces, and who retries it.
 
 <!--
 Source: PPT slides 156-167.
-
-The original showed each code example twice, once per SDK, side by side. This
-Workshop is Java only, so every pair became one Java snippet.
 -->
 
 ---
@@ -70,8 +67,7 @@ layout: default
 <!--
 Source: PPT slide 158.
 
-The original's second half was about another SDK's error return values and
-panics. The Java mapping:
+How that maps onto Java:
 
 - `throw ApplicationFailure.newFailure(...)` from a Workflow ends the Workflow
   Execution as Failed. That is a deliberate business decision. The same goes
@@ -138,8 +134,7 @@ layout: default
 <!--
 Source: PPT slide 160.
 
-The original's language note compared class hierarchies across SDKs. In Java
-there is one hierarchy, rooted at `TemporalFailure` in `io.temporal.failure`:
+In Java there is one hierarchy, rooted at `TemporalFailure` in `io.temporal.failure`:
 `ApplicationFailure`, `ActivityFailure`, `ChildWorkflowFailure`,
 `CanceledFailure`, `TimeoutFailure`, `TerminatedFailure`, `ServerFailure` and
 `NexusOperationFailure`. They are unchecked exceptions: you catch them with

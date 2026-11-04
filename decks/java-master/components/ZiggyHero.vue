@@ -60,7 +60,7 @@ const showMain = computed(() => !ownZiggys.includes(props.scene))
       <template v-else-if="scene === 'demo'">
         <div class="term">
           <div class="term-bar"><i></i><i></i><i></i></div>
-          <div class="term-line"><span class="typed">$ npm run start.watch</span><span class="cursor">▌</span></div>
+          <div class="term-line"><span class="typed">$ mvn exec:java@worker</span><span class="cursor">▌</span></div>
         </div>
         <span class="live"><i></i>LIVE</span>
       </template>
@@ -504,7 +504,7 @@ const showMain = computed(() => !ownZiggys.includes(props.scene))
   overflow: hidden;
   white-space: nowrap;
   width: 0;
-  animation: type 3.6s steps(21) infinite;
+  animation: type 3.6s steps(22) infinite;
 }
 .cursor { animation: blink 0.8s step-end infinite; }
 .live {
@@ -532,7 +532,7 @@ const showMain = computed(() => !ownZiggys.includes(props.scene))
 }
 @keyframes type {
   0% { width: 0; }
-  60%, 100% { width: 21ch; }
+  60%, 100% { width: 22ch; }
 }
 @keyframes blink { 50% { opacity: 0; } }
 

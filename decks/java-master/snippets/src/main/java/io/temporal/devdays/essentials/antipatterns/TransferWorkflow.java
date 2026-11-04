@@ -6,5 +6,5 @@ import io.temporal.workflow.WorkflowMethod;
 @WorkflowInterface
 public interface TransferWorkflow {
   @WorkflowMethod
-  void send(Transfer transfer);
+  void transfer(Transfer transfer);
 }

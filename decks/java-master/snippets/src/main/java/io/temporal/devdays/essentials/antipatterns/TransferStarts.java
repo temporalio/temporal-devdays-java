@@ -16,10 +16,10 @@ public final class TransferStarts {
     TransferWorkflow random = client.newWorkflowStub(
         TransferWorkflow.class,
         WorkflowOptions.newBuilder()
-            .setTaskQueue("payments")
+            .setTaskQueue("transfers")
             .setWorkflowId(UUID.randomUUID().toString())
             .build());
-    WorkflowClient.start(random::send, transfer);
+    WorkflowClient.start(random::transfer, transfer);
     // end part
     return WorkflowStub.fromTyped(random).getExecution();
   }
@@ -30,10 +30,10 @@ public final class TransferStarts {
     TransferWorkflow byId = client.newWorkflowStub(
         TransferWorkflow.class,
         WorkflowOptions.newBuilder()
-            .setTaskQueue("payments")
+            .setTaskQueue("transfers")
             .setWorkflowId("transfer-" + transfer.transferId())
             .build());
-    WorkflowClient.start(byId::send, transfer);
+    WorkflowClient.start(byId::transfer, transfer);
     // end part
     return WorkflowStub.fromTyped(byId).getExecution();
   }

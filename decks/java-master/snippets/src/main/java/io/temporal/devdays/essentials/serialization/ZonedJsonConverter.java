@@ -13,7 +13,7 @@ import java.lang.reflect.Type;
 import java.util.Optional;
 
 /** The SDK's Jackson setup, plus one feature: a ZonedDateTime keeps its zone ID. */
-// part: 19-serialization.md "A custom payload converter" 1
+// slide: 19-serialization.md "A custom payload converter"
 public class ZonedJsonConverter implements PayloadConverter {
   private final ObjectMapper mapper =
       JacksonJsonPayloadConverter.newDefaultObjectMapper()
@@ -34,7 +34,9 @@ public class ZonedJsonConverter implements PayloadConverter {
       throw new DataConverterException(e);
     }
   }
+// end slide
 
+  // part: 19-serialization.md "A custom payload converter: reading it back" 1
   public <T> T fromData(Payload payload, Class<T> type, Type genericType) {
     try {
       return mapper.readValue(
@@ -43,5 +45,5 @@ public class ZonedJsonConverter implements PayloadConverter {
       throw new DataConverterException(e);
     }
   }
+  // end part
 }
-// end part

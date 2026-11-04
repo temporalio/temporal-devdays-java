@@ -34,19 +34,19 @@ proseMax: 30
 TransferWorkflow random = client.newWorkflowStub(
     TransferWorkflow.class,
     WorkflowOptions.newBuilder()
-        .setTaskQueue("payments")
+        .setTaskQueue("transfers")
         .setWorkflowId(UUID.randomUUID().toString())
         .build());
-WorkflowClient.start(random::send, transfer);
+WorkflowClient.start(random::transfer, transfer);
 
 // ✅ The transfer's own ID: the second start is rejected
 TransferWorkflow byId = client.newWorkflowStub(
     TransferWorkflow.class,
     WorkflowOptions.newBuilder()
-        .setTaskQueue("payments")
+        .setTaskQueue("transfers")
         .setWorkflowId("transfer-" + transfer.transferId())
         .build());
-WorkflowClient.start(byId::send, transfer);
+WorkflowClient.start(byId::transfer, transfer);
 ```
 
 ::default::
@@ -371,7 +371,7 @@ One minute, and every row maps to something the room just clicked through:
 - **Durably persisted.** Kill every Worker while it is parked: the Signal is
   still accepted and the transfer resumes when a Worker comes back.
 
-- **Retries before parking.** `maximumAttempts: 3` handles a timeout or a 503;
+- **Retries before parking.** `setMaximumAttempts(3)` handles a timeout or a 503;
   only the non-retryable `AccountNotFoundError` parks at once.
 - **Query.** That was step 2. Pair it with a Search Attribute so operators can
   list every parked transfer, not just look one up.

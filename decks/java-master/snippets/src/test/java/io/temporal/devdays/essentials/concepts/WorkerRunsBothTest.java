@@ -21,7 +21,7 @@ class WorkerRunsBothTest {
 
   @BeforeEach
   void setUp() {
-    TransferActivitiesImpl.CALLS.clear();
+    BankActivitiesImpl.CALLS.clear();
     env = TestWorkflowEnvironment.newInstance();
     factory = WorkerRunsBoth.start(env.getWorkflowClient());
   }
@@ -49,7 +49,7 @@ class WorkerRunsBothTest {
             + " completion");
     assertEquals(
         List.of("withdraw t-1", "deposit t-1"),
-        TransferActivitiesImpl.CALLS,
+        BankActivitiesImpl.CALLS,
         "WorkerRunsBoth.java: the slide claims the same Worker runs the Activities it was handed,"
             + " in the order the Workflow calls them");
   }

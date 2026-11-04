@@ -31,14 +31,9 @@ notes:
 
 ::code::
 
-```java {all|1|10|16|15|22|24}
-public class EncryptionCodec implements PayloadCodec {
+```java {all|1|5|11|10|17|19}
+public record EncryptionCodec(SecretKey key) implements PayloadCodec {
   private static final String ENCODING = "binary/encrypted";
-  private final SecretKey key;
-
-  public EncryptionCodec(SecretKey key) {
-    this.key = key;
-  }
 
   @Override
   public List<Payload> encode(List<Payload> payloads) {
@@ -73,7 +68,8 @@ and AesGcm.java
 
 Walk the interface. Two methods, both over lists.
 
-- **Build 1 - the interface.** `PayloadCodec` is the whole contract.
+- **Build 1 - the interface.** `PayloadCodec` is the whole contract. A record
+  is enough to hold the key: the codec has no other state.
 - **Build 2 - `encode`.** Called on the way out, after the payload converter
   from the last segment has turned your values into Payloads, and before
   anything is sent to the Temporal Service. This is the last point at which

@@ -174,8 +174,7 @@ If it can fail for external reasons, it's an Activity.
 <!--
 Source: PPT slide 25.
 
-The original said "the Worker enforces this with different mechanisms,
-depending on the SDK." The Java SDK has no sandbox: your Workflow class is
+The Java SDK has no sandbox: your Workflow class is
 ordinary bytecode, and nothing stops it calling `Thread.sleep` or opening a
 socket. What it does instead is control how the code runs and check what it
 does. Each Workflow Execution gets its own instance of your Workflow class,
@@ -217,7 +216,7 @@ notes:
 WorkerFactory factory = WorkerFactory.newInstance(client);
 Worker worker = factory.newWorker("transfers");
 worker.registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
-worker.registerActivitiesImplementations(new TransferActivitiesImpl());
+worker.registerActivitiesImplementations(new BankActivitiesImpl());
 factory.start();
 ```
 

@@ -15,15 +15,15 @@ import org.junit.jupiter.api.Test;
 /** Builds the Worker from WorkerApp.java (07-workers.md) against the test server. */
 class WorkerAppTest {
   private TestWorkflowEnvironment env;
-  private OrderActivitiesImpl activities;
+  private BankActivitiesImpl activities;
 
   @BeforeEach
   void setUp() {
     env = TestWorkflowEnvironment.newInstance();
     // The same registration as WorkerApp.main, on the same Task Queue.
-    Worker worker = env.newWorker("order-task-queue");
-    worker.registerWorkflowImplementationTypes(OrderWorkflowImpl.class);
-    activities = new OrderActivitiesImpl();
+    Worker worker = env.newWorker("transfers");
+    worker.registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
+    activities = new BankActivitiesImpl();
     worker.registerActivitiesImplementations(activities);
     env.start();
   }
@@ -33,10 +33,10 @@ class WorkerAppTest {
     env.close();
   }
 
-  private OrderWorkflow stub(String taskQueue, String workflowId) {
+  private TransferWorkflow stub(String taskQueue, String workflowId) {
     return env.getWorkflowClient()
         .newWorkflowStub(
-            OrderWorkflow.class,
+            TransferWorkflow.class,
             WorkflowOptions.newBuilder()
                 .setTaskQueue(taskQueue)
                 .setWorkflowId(workflowId)
@@ -47,15 +47,15 @@ class WorkerAppTest {
   void theWorkerRunsWorkflowsAndActivitiesFromItsTaskQueue() {
     assertEquals(
         "o-1 submitted (call 1 on this instance)",
-        stub("order-task-queue", "order-o-1").processOrder("o-1"),
-        "WorkerApp.java: a Worker polling order-task-queue should run the Workflow and its"
+        stub("transfers", "transfer-o-1").transfer("o-1"),
+        "WorkerApp.java: a Worker polling transfers should run the Workflow and its"
             + " Activity");
   }
 
   @Test
   void workflowsGetANewInstancePerExecutionAndActivitiesShareOne() {
-    stub("order-task-queue", "order-a").processOrder("a");
-    String second = stub("order-task-queue", "order-b").processOrder("b");
+    stub("transfers", "transfer-a").transfer("a");
+    String second = stub("transfers", "transfer-b").transfer("b");
     assertEquals(
         "b submitted (call 1 on this instance)",
         second,
@@ -70,8 +70,8 @@ class WorkerAppTest {
 
   @Test
   void aTaskQueueTypoStartsTheWorkflowButNothingRunsIt() {
-    OrderWorkflow typo = stub("order-taskqueue", "order-typo");
-    WorkflowClient.start(typo::processOrder, "typo");
+    TransferWorkflow typo = stub("transfer", "transfer-typo");
+    WorkflowClient.start(typo::transfer, "typo");
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
         WorkflowStub.fromTyped(typo).describe().getStatus(),

@@ -308,8 +308,8 @@ A Retry Policy tells Temporal how and when to try again after a failure.
 <p class="col-eyebrow">Activities vs Workflows</p>
 
 - **Activities retry by default:** that is where transient failures happen
-- **Workflows do not:** a retry replays the same Events, so retry the
-  Activities inside instead
+- **Workflows do not:** the code is deterministic, so a failed run would
+  usually fail the same way again; retry the Activities inside instead
 - **Workflow Tasks** retry on their own, outside any Retry Policy
 
 </div>
@@ -406,7 +406,7 @@ The docs say to use them sparingly: invalid input is the classic case. The
 Workflow gets an `ActivityFailure` whose `getCause()` is an
 `ApplicationFailure` with `getType()` `"CardDeclined"`, and `getRetryState()`
 `RETRY_STATE_NON_RETRYABLE_FAILURE`; the tests behind this Deck check both,
-after one attempt. That is the Error handling segment's next slide.
+after one attempt. The Error handling segment comes back to it.
 -->
 
 ---

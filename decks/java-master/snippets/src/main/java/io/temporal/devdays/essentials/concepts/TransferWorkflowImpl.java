@@ -6,9 +6,9 @@ import java.time.Duration;
 
 /** Orchestration only: no I/O, just two Activity calls in order. */
 public class TransferWorkflowImpl implements TransferWorkflow {
-  private final TransferActivities activities =
+  private final BankActivities activities =
       Workflow.newActivityStub(
-          TransferActivities.class,
+          BankActivities.class,
           ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(10)).build());
 
   @Override

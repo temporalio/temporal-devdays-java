@@ -99,8 +99,9 @@ compiled, never run).
 - **Build 4 - the Task Queue.** The only link between this Client and the
   Worker. A typo here and the Workflow waits forever on a queue nobody polls.
 - **Build 5 - the Workflow ID.** `transfer-tx-1001`, built from the business ID,
-  so a retried request cannot move the money twice, and support can find the
-  Workflow by transfer number.
+  so a retried request cannot start a second transfer while the first is still
+  running (set `WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE` to also refuse one
+  after it closes), and support can find the Workflow by transfer number.
 - **Build 6 - the input.** A record, checked by the compiler against
   `transfer(Transfer)`. It travels as JSON, so keep it serializable.
 - **Build 7 - the call.** Calling the `@WorkflowMethod` on the stub starts the

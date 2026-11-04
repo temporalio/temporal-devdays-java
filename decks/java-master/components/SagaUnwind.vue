@@ -22,11 +22,11 @@ type Row = { event: string; detail: string; tone: 'ok' | 'fail' | 'plain' }
 type Step = { stack: string[]; done: string[]; running?: string; rows: Row[]; say: string }
 
 const STARTED: Row = { event: 'WorkflowExecutionStarted', detail: 'OrderFulfillmentWorkflow', tone: 'plain' }
-const RESERVE: Row = { event: 'ActivityTaskCompleted', detail: 'reserveInventory', tone: 'ok' }
-const CHARGE: Row = { event: 'ActivityTaskCompleted', detail: 'chargePayment', tone: 'ok' }
-const DISPATCH: Row = { event: 'ActivityTaskFailed', detail: 'dispatchCourier', tone: 'fail' }
-const REFUND: Row = { event: 'ActivityTaskCompleted', detail: 'refundPaymentIfCharged', tone: 'ok' }
-const RELEASE: Row = { event: 'ActivityTaskCompleted', detail: 'releaseInventoryIfReserved', tone: 'ok' }
+const RESERVE: Row = { event: 'ActivityTaskCompleted', detail: 'ReserveInventory', tone: 'ok' }
+const CHARGE: Row = { event: 'ActivityTaskCompleted', detail: 'ChargePayment', tone: 'ok' }
+const DISPATCH: Row = { event: 'ActivityTaskFailed', detail: 'DispatchCourier', tone: 'fail' }
+const REFUND: Row = { event: 'ActivityTaskCompleted', detail: 'RefundPaymentIfCharged', tone: 'ok' }
+const RELEASE: Row = { event: 'ActivityTaskCompleted', detail: 'ReleaseInventoryIfReserved', tone: 'ok' }
 const FAILED: Row = { event: 'WorkflowExecutionFailed', detail: 'CourierUnavailable', tone: 'fail' }
 
 const R = 'releaseInventoryIfReserved'

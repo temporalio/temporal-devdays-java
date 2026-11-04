@@ -16,7 +16,7 @@ public final class WorkerRunsBoth {
     WorkerFactory factory = WorkerFactory.newInstance(client);
     Worker worker = factory.newWorker("transfers");
     worker.registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
-    worker.registerActivitiesImplementations(new TransferActivitiesImpl());
+    worker.registerActivitiesImplementations(new BankActivitiesImpl());
     factory.start();
     // end slide
     return factory;

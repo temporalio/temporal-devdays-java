@@ -45,7 +45,7 @@ class AntipatternsTest {
 
   @Test
   void aRandomWorkflowIdLetsADoubleTapStartTwoTransfers() {
-    env.newWorker("payments").registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
+    env.newWorker("transfers").registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
     env.start();
     Transfer transfer = new Transfer("t-1");
 
@@ -60,7 +60,7 @@ class AntipatternsTest {
 
   @Test
   void theBusinessIdAsWorkflowIdRejectsTheSecondStartWhileTheFirstRuns() {
-    env.newWorker("payments").registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
+    env.newWorker("transfers").registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
     env.start();
     Transfer transfer = new Transfer("t-2");
 

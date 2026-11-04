@@ -4,7 +4,7 @@ import io.temporal.activity.ActivityInterface;
 
 /** The Activities the Worker in 03-temporal-concepts.md "One Worker, both kinds of code" runs. */
 @ActivityInterface
-public interface TransferActivities {
+public interface BankActivities {
   String withdraw(String transferId);
 
   String deposit(String transferId);

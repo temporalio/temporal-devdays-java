@@ -220,7 +220,7 @@ layout: default
 Source: PPT slide 106.
 
 The last one bites in production. If you spawn one child per entity, the ID
-scheme (`"order-" + orderId + "-fulfillment"`) is part of your system design, not an
+scheme (`"shipment-" + orderId`) is part of your system design, not an
 afterthought. A collision fails the start, and it happens at 3am.
 
 Tease Continue-As-New here. It is next.

@@ -13,9 +13,7 @@ Two ways to launch a Workflow, and one of them gives you a handle.
 <!--
 Source: PPT slides 55-58.
 
-The original slides used another SDK's `ExecuteWorkflowAsync` /
-`StartWorkflowAsync`; these are rewritten against `io.temporal.client`. In Java,
-"execute" is calling the Workflow method on a typed stub, and "start" is
+In Java, "execute" is calling the Workflow method on a typed stub, and "start" is
 `WorkflowClient.start`.
 
 Short segment, and the distinction matters the moment anyone wants to send a

@@ -1,4 +1,22 @@
 ---
+layout: section
+---
+
+<ZiggyHero scene="blueprint">
+
+# Design patterns
+
+What belongs in a Workflow, and what belongs in an Activity.
+
+</ZiggyHero>
+
+<!--
+The divider for the design patterns: where the line between Workflow code and
+Activity code goes, and why. Everything in this segment is a consequence of
+the Workflow being replayed and the Activity not.
+-->
+
+---
 layout: code-walkthrough
 heading: Make it an Activity if it…
 notes:
@@ -219,7 +237,7 @@ As an Activity, the Worker can restart freely. Temporal reschedules the
 Activity and retries it from the top, or, if it heartbeats its progress, from
 the last checkpoint it recorded.
 
-The timeout placement is the design point, and the same one you will see on the
+The timeout placement is the design point, and the same one you saw on the
 Workflow anatomy slide: policy lives with the caller, in the `ActivityOptions`
 on the stub, not scattered through the implementations.
 

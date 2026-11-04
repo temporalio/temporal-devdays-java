@@ -99,8 +99,7 @@ review tool sends `approveWire` with their name.
   `Workflow.await(() -> Workflow.isEveryHandlerFinished())` before it returns,
   so it does not complete under a running handler. A flag plus `Workflow.await`
   is the simplest shape and the one to teach first.
-- **Build 6 - `Workflow.await`.** The equivalent of the original's
-  `Workflow.await { approved }`. The Workflow is suspended here: no CPU, no
+- **Build 6 - `Workflow.await`.** The Workflow is suspended here: no CPU, no
   Worker slot, and it can be evicted from the Worker's cache and rebuilt by
   replay later. It can wait over a weekend for compliance to come back. If the
   Worker restarts, it replays to this line and waits again.

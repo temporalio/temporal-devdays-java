@@ -11,13 +11,8 @@ import java.util.List;
 import javax.crypto.SecretKey;
 
 // slide: 20-encryption.md "A codec in practice"
-public class EncryptionCodec implements PayloadCodec {
+public record EncryptionCodec(SecretKey key) implements PayloadCodec {
   private static final String ENCODING = "binary/encrypted";
-  private final SecretKey key;
-
-  public EncryptionCodec(SecretKey key) {
-    this.key = key;
-  }
 
   @Override
   public List<Payload> encode(List<Payload> payloads) {

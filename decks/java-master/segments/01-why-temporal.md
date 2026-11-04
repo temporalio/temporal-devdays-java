@@ -444,7 +444,7 @@ Source: PPT slide 19. Say it and let it land. This is the thesis of the day.
 layout: code-walkthrough
 heading: The Temporal version
 notes:
-  - The same three steps as slide 12. No lock, no state table, no retry loop, no audit rows
+  - The same three steps as The non-Temporal version. No lock, no state table, no retry loop, no audit rows
   - Retries, backoff and timeouts become <strong>configuration</strong>, declared once, by the caller
   - The Workflow calls <code>fulfillOrder</code>. The business requirement is one line again
 ---
@@ -487,7 +487,7 @@ and FulfillmentWorkflowImpl.java. The two interfaces they implement,
 `FulfillmentActivities` (`@ActivityInterface`) and `FulfillmentWorkflow`
 (`@WorkflowInterface`), are one method each and left off the slide.
 
-This is the payoff. Deliver it slowly, and put slide 12 in their heads first:
+This is the payoff. Deliver it slowly, and put "The non-Temporal version" back in their heads first:
 the lock, the state table, a checkpoint round every step, `withRetry`,
 `withTimeout`, the audit rows, the dead-letter queue, the recovery cron.
 
@@ -504,7 +504,7 @@ the lock, the state table, a checkpoint round every step, `withRetry`,
   line from the naive slide again. The Workflow knows only the Activity's
   interface; the stub `Workflow.newActivityStub` returns turns each call into a
   scheduled Activity Task. Go
-  down slide 12's bubbles and say where each went: the lock is the Workflow
+  down the non-Temporal version's bubbles and say where each went: the lock is the Workflow
   ID, the state table and checkpoints are Event History, retries and timeouts
   are the policy, the audit trail is the Web UI, and the recovery cron is a
   Worker picking the Workflow up where it stopped.
@@ -533,8 +533,7 @@ layout: default
   <div class="row"><span class="lane">Workflow Execution</span><span class="track"><span class="bar ok" style="left: 0%; width: 100%">ticket-low-TEMP-042</span></span></div>
   <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 0%; width: 31%">sendAutoResponse</span></span></div>
   <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 32%; width: 31%">searchKnowledgeBase</span></span></div>
-  <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 64%; width: 16%">notifyCustomer</span></span></div>
-  <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 81%; width: 19%">validateResolution</span></span></div>
+  <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 64%; width: 36%">notifyCustomer</span></span></div>
 </div>
 
 <style scoped>
@@ -601,8 +600,7 @@ layout: default
   <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 0%; width: 22%">sendAutoResponse</span></span></div>
   <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar failed" style="left: 23%; width: 22%">searchKnowledgeBase ⓘ</span></span></div>
   <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 46%; width: 21%">assignAgent</span></span></div>
-  <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 68%; width: 21%">agentResolve</span></span></div>
-  <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 85%; width: 15%">notifyCustomer</span></span></div>
+  <div class="row"><span class="lane">Activity</span><span class="track"><span class="bar ok" style="left: 68%; width: 32%">resolveTicket</span></span></div>
 </div>
 
 <style scoped>
@@ -656,7 +654,7 @@ layout: default
 Source: PPT slide 18. Redrawn from the original's Web UI screenshot.
 
 The knowledge base search fails with a non-retryable error, and the Workflow
-takes the other branch: assign an agent, resolve, notify. The failure is not a
+takes the other branch: assign an agent, resolve the ticket. The failure is not a
 log line; in the Web UI it is a red bar with the error and the stack trace one
 click away.
 

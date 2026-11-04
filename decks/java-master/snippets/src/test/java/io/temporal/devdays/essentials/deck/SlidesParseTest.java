@@ -19,8 +19,9 @@ class SlidesParseTest {
       new JavaParser(new ParserConfiguration().setLanguageLevel(LanguageLevel.JAVA_21));
 
   /**
-   * A slide may show a whole file, a class's members, a method body, a single expression, or a
-   * {@code catch} clause on its own. Try it at each level it could plausibly sit at. A line that is
+   * A slide may show a whole file, a class cut off after its first members (the rest on the next
+   * slide), a class's members, a method body, a single expression, or a {@code catch} clause on its
+   * own. Try it at each level it could plausibly sit at. A line that is
    * only {@code ...} stands for elided code and is dropped first.
    */
   static boolean parses(String code) {
@@ -28,6 +29,7 @@ class SlidesParseTest {
     List<String> wrappers =
         List.of(
             c,
+            c + "\n}",
             "class _C {\n" + c + "\n}",
             "class _C { void _f() throws Exception {\n" + c + "\n} }",
             "class _C { Object _o = \n" + c + "\n; }",

@@ -201,8 +201,8 @@ transparently, for every payload.
   `StorageDriverSelector` to choose between them.
 - **Build 3 - the threshold.** 256 KiB by default. Set it to 0 to externalize
   everything, for example when data must stay in infrastructure you control.
-- **Build 4 - both sides.** Like the data converter, a `WorkerFactory` takes
-  External Storage from the client it is built on. A Client without it cannot
+- **Build 4 - both sides.** A `WorkerFactory` takes External Storage from the
+  client it is built on, as it will the data converter. A Client without it cannot
   read an offloaded result.
 
 This segment now comes before Serialization and Encryption, so the room has not

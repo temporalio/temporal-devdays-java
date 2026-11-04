@@ -48,12 +48,12 @@ const ACTIVITY = [
 
 const EVENTS = [
   { name: 'WorkflowExecutionStarted', detail: 'input: order', at: 1 },
-  { name: 'ActivityTaskScheduled', detail: 'getDistance', at: 1 },
+  { name: 'ActivityTaskScheduled', detail: 'GetDistance', at: 1 },
   { name: 'ActivityTaskStarted', at: 2 },
   { name: 'ActivityTaskCompleted', detail: 'result: 15', at: 2 },
   { name: 'TimerStarted', detail: '30m', at: 3 },
   { name: 'TimerFired', at: 3 },
-  { name: 'ActivityTaskScheduled', detail: 'sendBill', at: 7 },
+  { name: 'ActivityTaskScheduled', detail: 'SendBill', at: 7 },
   { name: 'ActivityTaskStarted', at: 7 },
   { name: 'ActivityTaskCompleted', detail: 'result: bill', at: 7 },
   { name: 'WorkflowExecutionCompleted', at: 8 },

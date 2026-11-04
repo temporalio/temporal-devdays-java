@@ -135,8 +135,10 @@ run by UpdatesTest. `activities` is an Activity stub from
 - **Build 4 - change and answer.** The return value goes back to the caller and
   is recorded in history as `WorkflowExecutionUpdateCompleted`.
 - **Build 5 - the validator.** It runs before the Update is accepted, takes the
-  same arguments, and runs read-only: it must not change state, call Activities
-  or block. If it tries, the SDK fails the Workflow Task.
+  same arguments, and runs read-only. Calling an Activity, sleeping or awaiting
+  from it fails the Workflow Task. Changing a field is not detected, and
+  validators are skipped on replay, so a validator that mutates state silently
+  diverges: don't.
 - **Build 6 - reject.** Any exception thrown in the validator rejects the
   Update: the caller gets `WorkflowUpdateException`, and nothing is written to
   history. After acceptance it is different: throw an `ApplicationFailure` in

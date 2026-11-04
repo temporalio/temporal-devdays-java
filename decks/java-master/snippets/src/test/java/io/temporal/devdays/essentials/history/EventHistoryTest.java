@@ -136,6 +136,18 @@ class EventHistoryTest {
         "components/ReplayFlow.vue's EVENTS should be the history Pizza.java records, Workflow"
             + " Task events left out");
 
+    // The Activity Types ReplayFlow names are the ones the Event History records.
+    List<String> recordedTypes =
+        events.stream()
+            .filter(e -> e.getEventType() == EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED)
+            .map(e -> e.getActivityTaskScheduledEventAttributes().getActivityType().getName())
+            .toList();
+    assertEquals(
+        recordedTypes,
+        quoted(REPLAY_FLOW, "const EVENTS", "name: 'ActivityTaskScheduled', detail: '([^']+)'"),
+        "components/ReplayFlow.vue should name each Activity by the Activity Type the history"
+            + " records (the method name, capitalised)");
+
     // WorkflowRun.vue and the notes: Started is written when the attempt finishes, so it sits
     // directly before Completed.
     for (int i = 0; i < events.size(); i++) {
