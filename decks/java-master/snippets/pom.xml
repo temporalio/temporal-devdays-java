@@ -53,7 +53,7 @@
       <groupId>io.temporal</groupId>
       <artifactId>temporal-testing</artifactId>
       <version>${temporal.version}</version>
-      <scope>test</scope>
+      <!-- Compile scope: the replay slide's snippet (WorkflowReplayer) lives in src/main. -->
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

@@ -11,19 +11,17 @@ Payloads leave your Worker. Encrypt them before they do.
 </ZiggyHero>
 
 <!--
-Source: PPT slides 63-64, `{{SLIDE:encryption-codec-in-practice}}`. The
-registration and Codec Server slides are new to the TypeScript Deck.
+Source: PPT slides 63-64, `{{SLIDE:encryption-codec-in-practice}}`.
 
-PORTED: the original showed C#'s `IPayloadCodec`. The TypeScript interface is
-`PayloadCodec` from `@temporalio/common`, with `encode`/`decode` rather than
-`EncodeAsync`/`DecodeAsync`.
+The Java interface is `PayloadCodec` from `io.temporal.payload.codec`, with
+`encode` and `decode` over lists of Payloads.
 -->
 
 ---
 layout: code-walkthrough
 heading: A codec in practice
 notes:
-  - "<code>PayloadCodec</code>: two async methods over arrays of Payloads"
+  - "<code>PayloadCodec</code>: two methods over lists of Payloads"
   - "<code>encode</code> runs after the payload converter, before anything leaves the process"
   - The whole Payload, metadata included, is serialized and encrypted
   - A new encoding label, so the other side knows to decrypt
@@ -33,40 +31,47 @@ notes:
 
 ::code::
 
-```ts {all|3|6|10|9|15|18-20}
-const ENCODING = "binary/encrypted";
+```java {all|1|10|16|15|22|24}
+public class EncryptionCodec implements PayloadCodec {
+  private static final String ENCODING = "binary/encrypted";
+  private final SecretKey key;
 
-export class EncryptionCodec implements PayloadCodec {
-  constructor(private readonly key: CryptoKey) {}
-
-  async encode(payloads: Payload[]): Promise<Payload[]> {
-    return Promise.all(
-      payloads.map(async (payload) => ({
-        metadata: { [METADATA_ENCODING_KEY]: utf8(ENCODING) },
-        data: await encrypt(this.key, PayloadProto.encode(payload).finish()),
-      })),
-    );
+  public EncryptionCodec(SecretKey key) {
+    this.key = key;
   }
 
-  async decode(payloads: Payload[]): Promise<Payload[]> {
-    return Promise.all(
-      payloads.map(async (payload) =>
-        isEncrypted(payload)
-          ? PayloadProto.decode(await decrypt(this.key, payload.data!))
-          : payload,
-      ),
-    );
+  @Override
+  public List<Payload> encode(List<Payload> payloads) {
+    return payloads.stream()
+        .map(
+            payload ->
+                Payload.newBuilder()
+                    .putMetadata("encoding", ByteString.copyFromUtf8(ENCODING))
+                    .setData(ByteString.copyFrom(encrypt(key, payload.toByteArray())))
+                    .build())
+        .toList();
+  }
+
+  @Override
+  public List<Payload> decode(List<Payload> payloads) {
+    return payloads.stream()
+        .map(payload -> isEncrypted(payload) ? decrypt(key, payload.getData()) : payload)
+        .toList();
   }
 }
 ```
 
 <!--
-Source: PPT slide 64, ported from C#. The imports and the small helpers are
-cut for room: `encrypt`/`decrypt` are AES-GCM with Node's Web Crypto, `utf8`
-is a `TextEncoder`, and `PayloadProto` is `temporal.api.common.v1.Payload`
-from `@temporalio/proto`. This is the shape of Temporal's own encryption sample.
+Source: PPT slide 64. The imports and the small helpers are cut for room:
+`encrypt`/`decrypt` are AES-GCM with `javax.crypto` and a random IV per
+Payload, `decrypt` also parses the inner Payload back with `Payload.parseFrom`,
+and `isEncrypted` checks the encoding label. This is the shape of the
+encryption sample in samples-java.
 
-Walk the interface. Two methods, both over arrays, both async.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/encryption/EncryptionCodec.java
+and AesGcm.java
+
+Walk the interface. Two methods, both over lists.
 
 - **Build 1 - the interface.** `PayloadCodec` is the whole contract.
 - **Build 2 - `encode`.** Called on the way out, after the payload converter
@@ -82,50 +87,66 @@ Walk the interface. Two methods, both over arrays, both async.
   before you turned encryption on, is left alone.
 
 The contrast with the payload converter, and the reason both exist: a payload
-converter runs inside the Workflow sandbox and must be synchronous. A codec runs
-outside it, on the Client and on the Worker's main thread, so it can be async
-and can call a KMS. That is where encryption and compression belong.
+converter turns values into bytes; a codec turns bytes into other bytes, so it
+works on any value without knowing its type. That is where encryption and
+compression belong.
+
+A Java detail worth knowing: both are synchronous, and both run wherever the
+data converter runs, which includes the Workflow thread (the Workflow
+serializes its own Activity arguments). Do not call a KMS on every `encode`:
+the Worker's deadlock detector flags a Workflow thread that does not yield for
+a second. Fetch and cache the data key, and encrypt locally.
 -->
 
 ---
 layout: code-walkthrough
 heading: Same codec, Client and Worker
 notes:
-  - An object this time, not a path. Codecs never enter the Workflow sandbox
+  - "<code>CodecDataConverter</code> wraps the default converter with your codecs"
   - The Client encodes Workflow arguments and decodes results
-  - The Worker does the rest. Workflow code does not change at all
+  - The Worker inherits the converter from its client. Workflow code does not change at all
 ---
 
 ::code::
 
-```ts {all|1|3|4-9}
-const dataConverter = { payloadCodecs: [new EncryptionCodec(key)] };
+```java {all|1-4|6-8|9-10}
+DataConverter converter =
+    new CodecDataConverter(
+        DefaultDataConverter.newDefaultInstance(),
+        List.of(new EncryptionCodec(key)));
 
-const client = new Client({ connection, dataConverter });
-const worker = await Worker.create({
-  connection: nativeConnection,
-  taskQueue,
-  workflowsPath,
-  dataConverter,
-});
+WorkflowClient client =
+    WorkflowClient.newInstance(
+        service, WorkflowClientOptions.newBuilder().setDataConverter(converter).build());
+WorkerFactory factory = WorkerFactory.newInstance(client);
+Worker worker = factory.newWorker(taskQueue);
 ```
 
 <!--
 Source: PPT slide 64, the registration lines of the original, split out.
 
-- **Build 1 - the codec list.** `payloadCodecs` is an array: encoding runs in
-  array order and decoding in reverse, so `[compression, encryption]`
-  compresses first, then encrypts.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/encryption/EncryptionSetup.java
+
+- **Build 1 - the codec list.** `CodecDataConverter` runs the payload converter
+  first, then the codecs. The list order matters: on the way out the codecs
+  are applied last to first, so the earlier ones wrap the later ones.
+  `List.of(encryption, compression)` compresses first, then encrypts.
 - **Build 2 - the Client.** Miss it here and the Client cannot read the result:
-  it gets a `binary/encrypted` Payload and throws "Unknown encoding". At
-  runtime, not compile time.
-- **Build 3 - the Worker.** Same codec, same key.
+  it gets a `binary/encrypted` Payload and throws "No PayloadConverter is
+  registered for an encoding: binary/encrypted". At runtime, not compile time.
+- **Build 3 - the Worker.** A `WorkerFactory` uses the data converter of the
+  client it is built on: same codec, same key. In a separate Worker process,
+  build its client the same way.
 
 The claim worth making explicitly, because it is the reason the pattern exists:
 Workflow code does not change at all. Not one line. Encryption is a transport
 concern and it stays one. The tests behind this Deck run a Workflow whose code
 has never heard of encryption, and check that the Event History holds only
 ciphertext.
+
+Failures are a separate switch: Payloads inside a failure's details are always
+encoded, but the message and stack trace are not unless you pass `true` as the
+third argument to `CodecDataConverter`.
 -->
 
 ---
