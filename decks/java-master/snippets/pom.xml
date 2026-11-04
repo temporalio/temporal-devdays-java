@@ -29,6 +29,13 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <!-- temporal-aws-lambda brings slf4j-api 1.7, which cannot load slf4j-simple 2's
+           provider and silently drops every log line. Pin the API to match. -->
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>2.0.17</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
