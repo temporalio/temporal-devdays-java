@@ -76,7 +76,6 @@ class: "!p-0"
 </style>
 
 <!--
-Source: decks/_template/segments/00-open.md. Ported from the Python Deck.
 Every Deck opens this way: cover, presenter, agenda.
 
 Twenty seconds. This is a Foundations room, so a short intro is welcome, but it

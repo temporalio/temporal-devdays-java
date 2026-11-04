@@ -11,7 +11,7 @@ The four pieces, and why replay works.
 </ZiggyHero>
 
 <!--
-Source: PPT slides 22-28. Ported from the Python Deck.
+Source: PPT slides 22-28.
 
 Seven short slides. This is the vocabulary everything after it assumes, so
 check the room is with you before the code starts.
@@ -75,9 +75,9 @@ layout: default
 <dl>
 <dt>Determinism</dt><dd>⚠️ Must be deterministic</dd>
 <dt>I/O</dt><dd>⚠️ No network, DB, or file I/O</dd>
-<dt>Time</dt><dd>Workflow-safe <code>Date.now()</code>, <code>sleep()</code></dd>
-<dt>Randomness</dt><dd>Seeded <code>Math.random()</code>, <code>uuid4()</code></dd>
-<dt>Logging</dt><dd><code>log</code> from <code>@temporalio/workflow</code></dd>
+<dt>Time</dt><dd><code>Workflow.currentTimeMillis()</code>, <code>Workflow.sleep()</code></dd>
+<dt>Randomness</dt><dd><code>Workflow.newRandom()</code>, <code>Workflow.randomUUID()</code></dd>
+<dt>Logging</dt><dd><code>Workflow.getLogger()</code></dd>
 <dt>Retries</dt><dd>Off; failed Workflow Tasks retry</dd>
 <dt>Duration</dt><dd>Indefinite</dd>
 <dt>On failure</dt><dd><strong>Replays from history</strong></dd>
@@ -90,9 +90,9 @@ layout: default
 <dt>Determinism</dt><dd>Can be non-deterministic</dd>
 <dt>I/O</dt><dd>All I/O allowed</dd>
 <dt>Time</dt><dd>Any clock</dd>
-<dt>Randomness</dt><dd><code>Math.random()</code>, <code>crypto.randomUUID()</code></dd>
-<dt>Logging</dt><dd><code>log</code> from <code>@temporalio/activity</code></dd>
-<dt>Retries</dt><dd><code>retry</code> in <code>proxyActivities()</code></dd>
+<dt>Randomness</dt><dd><code>new Random()</code>, <code>UUID.randomUUID()</code></dd>
+<dt>Logging</dt><dd>Any SLF4J <code>Logger</code></dd>
+<dt>Retries</dt><dd><code>RetryOptions</code> in <code>ActivityOptions</code></dd>
 <dt>Duration</dt><dd>Typically short-lived</dd>
 <dt>On failure</dt><dd><strong>Restarts from scratch</strong></dd>
 </dl>
@@ -119,7 +119,7 @@ layout: default
 Source: PPT slide 24, "Workflow code cannot interact with the outside world
 directly", merged with PPT slide 37 (`{{SLIDE:workflows-activities-comparison}}`),
 the Workflows vs. Activities table that used to close the design-patterns
-segment. The original table carried Python names; they are TypeScript here.
+segment. The SDK names in the table are the Java ones.
 
 This is the split everything else hangs on. Say the rule in one sentence and
 come back to it every time a code slide appears: if it can fail for external
@@ -130,17 +130,23 @@ row: "replays from history" versus "restarts from scratch" is the whole
 difference in five words. The rest earns its keep in the PDF.
 
 The Retries row, if asked. A Workflow Execution is not retried by default. You
-can give it a `retry` policy when you start it, but that is rare and usually a
-smell. What does retry is the Workflow Task: if it throws an ordinary error
-because of a bug, Temporal retries the Workflow Task, so you can fix the code
-and redeploy while the Workflow waits. Business failures are handled in the
-Workflow's own code, or by throwing an `ApplicationFailure`, which fails the
-Workflow. A retried Activity starts from the top, unless it heartbeats progress.
+can give it `setRetryOptions` in its `WorkflowOptions` when you start it, but
+that is rare and usually a smell. What does retry is the Workflow Task: if the
+Workflow throws an ordinary exception (a `NullPointerException`, an
+`IllegalStateException`) because of a bug, Temporal retries the Workflow Task,
+so you can fix the code and redeploy while the Workflow waits. Business
+failures are handled in the Workflow's own code, or by throwing an
+`ApplicationFailure` (`ApplicationFailure.newFailure(...)`), which fails the
+Workflow. A retried Activity starts from the top, unless it heartbeats
+progress.
 
-One nuance if someone challenges the Time row: `Date.now()` and `sleep()` *are*
-available inside a Workflow, and they are deterministic because the SDK drives
-them from Workflow time rather than the wall clock. It is the unmanaged clock
-that is banned, not the concept of time.
+One nuance if someone challenges the Time row: `Workflow.currentTimeMillis()`
+and `Workflow.sleep()` *are* available inside a Workflow, and they are
+deterministic because the SDK drives them from Workflow time rather than the
+wall clock. It is `System.currentTimeMillis()` and `Thread.sleep()` that are
+banned, not the concept of time. The same goes for the Logging row:
+`Workflow.getLogger(MyWorkflowImpl.class)` is an SLF4J logger that stays quiet
+during replay, so a replayed Workflow does not log every line twice.
 -->
 
 ---
@@ -153,9 +159,11 @@ Workflow code runs under special constraints.
 
 - **Workflow code must be deterministic.** Same inputs, same history, same
   decisions, every time it runs.
-- **The Worker enforces this.** In TypeScript, Workflows are bundled and run in
-  an **isolated V8 context**: no Node.js built-ins, no I/O, and a deterministic
-  `Date` and `Math.random`.
+- **The Worker enforces this.** In Java, the SDK runs each Workflow on threads
+  it schedules itself, one at a time, and **replays** it against its Event
+  History: code that makes different decisions fails with a non-determinism
+  error. So: `Workflow.sleep`, `Workflow.currentTimeMillis`,
+  `Workflow.newRandom`, and no threads or I/O of your own.
 
 <div v-click class="mt-8 text-2xl font-light">
 
@@ -167,17 +175,30 @@ If it can fail for external reasons, it's an Activity.
 Source: PPT slide 25.
 
 The original said "the Worker enforces this with different mechanisms,
-depending on the SDK." In TypeScript the Worker bundles your Workflow code with
-webpack and runs each Workflow in its own isolated V8 context. Inside it,
-`Date.now()` returns the time of the current Workflow Task, `Math.random()` is
-seeded from the run, and `setTimeout` becomes a durable Timer, so all three
-replay identically. Node.js modules such as `fs` or `http` are not there at
-all: importing one fails the bundle, before the Worker even starts.
+depending on the SDK." The Java SDK has no sandbox: your Workflow class is
+ordinary bytecode, and nothing stops it calling `Thread.sleep` or opening a
+socket. What it does instead is control how the code runs and check what it
+does. Each Workflow Execution gets its own instance of your Workflow class,
+run on Workflow threads that the SDK schedules deterministically, one at a
+time. Every time the code asks for something durable (an Activity, a Timer, a
+Child Workflow) the SDK records a command; on replay it compares those
+commands with the Event History, and a mismatch fails the Workflow Task with
+a `NonDeterministicException` instead of silently corrupting the run.
 
-That is also why Workflow files import Activities with `import type`. The
-Workflow needs the Activities' signatures, never their code; `proxyActivities`
-turns each call into a scheduled Activity Task. It appears on the Workflow
-anatomy slide shortly; plant it now.
+So the rules are yours to keep, and the SDK gives you a deterministic version
+of each thing you would otherwise reach for: `Workflow.currentTimeMillis()`
+for the clock, `Workflow.sleep()` for a durable Timer, `Workflow.newRandom()`
+and `Workflow.randomUUID()` seeded from the run, `Async.function` and
+`Promise` instead of threads or `CompletableFuture`, and
+`Workflow.getLogger()` for logging. `System.currentTimeMillis()`,
+`Thread.sleep()`, `new Thread()`, `synchronized`, static mutable state and any
+I/O are out. The way to catch a slip before production is a replay test
+against a recorded history; the versioning segment shows one.
+
+That is also why the Workflow holds only the Activity interface. It needs the
+Activities' signatures, never their code; the stub from
+`Workflow.newActivityStub` turns each call into a scheduled Activity Task. It
+appears on the Workflow anatomy slide shortly; plant it now.
 -->
 
 ---
@@ -185,42 +206,43 @@ layout: code-walkthrough
 heading: One Worker, both kinds of code
 notes:
   - The one Task Queue this Worker polls for work
-  - "Workflow code, by <strong>file path</strong>: bundled and run in the isolated V8 context"
-  - "Activity code, by <strong>reference</strong>: plain Node.js, free to touch the world"
-  - Polls until it is shut down. Nothing runs without a Worker
+  - "Workflow code, by <strong>class</strong>: a new instance per Execution, run on the SDK's deterministic threads"
+  - "Activity code, by <strong>instance</strong>: one plain Java object, free to touch the world"
+  - Starts polling in the background. Nothing runs without a Worker
 ---
 
 ::code::
 
-```ts {all|3|4|5|7}
-const worker = await Worker.create({
-  connection,
-  taskQueue: "transfers",
-  workflowsPath: require.resolve("./workflows"),
-  activities,
-});
-await worker.run();
+```java {all|2|3|4|5}
+WorkerFactory factory = WorkerFactory.newInstance(client);
+Worker worker = factory.newWorker("transfers");
+worker.registerWorkflowImplementationTypes(TransferWorkflowImpl.class);
+worker.registerActivitiesImplementations(new TransferActivitiesImpl());
+factory.start();
 ```
 
 <!--
-New to the TypeScript Deck. Code:
-snippets/src/worker-runs-both.worker.ts (type-checked).
+Code: snippets/src/main/java/io/temporal/devdays/essentials/concepts/WorkerRunsBoth.java.
 
-The previous slide in code. One process, two very different runtimes, and you
-can see the split in the two options:
+The previous slide in code. One process, two very different ways of running
+code, and you can see the split in the two `register` calls:
 
 - **Build 1 - the Task Queue.** The Worker asks the Service for Tasks on
   `transfers`, and only those. The Client will start Workflows on the same
   name.
-- **Build 2 - `workflowsPath`.** A path, not an import. The Worker bundles that
-  module with webpack and runs each Workflow inside its own deterministic V8
-  context. That is where the rules from the previous slide are enforced.
-- **Build 3 - `activities`.** An object of ordinary functions, called directly
-  in this Node.js process. No sandbox, no rules: fetch, databases, the file
-  system.
-- **Build 4 - `run()`.** Long-polls until shutdown. The Server never runs your
-  code; if no Worker is polling, Tasks wait on the queue.
+- **Build 2 - `registerWorkflowImplementationTypes`.** A class, not an object.
+  The Worker creates a fresh instance for every Workflow Execution and runs it
+  on its own Workflow threads. That is where the rules from the previous slide
+  are checked.
+- **Build 3 - `registerActivitiesImplementations`.** An object, called
+  directly on the Worker's Activity threads, shared by every Activity Task.
+  No rules: HTTP clients, databases, the file system. Because it is shared, it
+  must be thread-safe, and it is the natural place to inject those clients.
+- **Build 4 - `factory.start()`.** Starts the pollers on background threads
+  and returns; they long-poll until the factory is shut down. The Server never
+  runs your code; if no Worker is polling, Tasks wait on the queue.
 
-Keep it short: the TypeScript Workers section takes the whole file apart,
-connection and all. This slide is only about the two halves.
+Keep it short: the Java Workers section takes the whole file apart, the
+`WorkflowServiceStubs` and `WorkflowClient` included. This slide is only about
+the two halves.
 -->
