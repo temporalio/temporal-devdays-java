@@ -60,6 +60,17 @@ _Avoid_: validation, verify
 The Slidev presentation delivered alongside a Workshop.
 _Avoid_: slides, presentation
 
+**Segment**:
+A self-contained section of a Deck, opening with its own divider, that other
+Decks import whole.
+_Avoid_: chapter, module, section
+
+**Temporal Essentials**:
+The Foundations Deck that holds every Segment, delivered end to end or drawn
+from by Workshop Decks. A Deck with no Track, Exercise or Solution of its own,
+so it is not a Workshop.
+_Avoid_: master deck, the master, Essentials Workshop
+
 **Exercise**:
 The code tree a learner starts from, with the work left undone as numbered TODOs.
 Core TODOs are required to finish; Stretch TODOs are optional extras for learners
