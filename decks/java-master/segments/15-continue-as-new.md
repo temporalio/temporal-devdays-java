@@ -56,8 +56,9 @@ the old version is swapped for a new one and users do not see the seam. Same
 here. Observers see one Workflow ID that has been running for months; underneath
 it has restarted dozens of times with a clean history each time.
 
-Each run gets a new Run ID under the same Workflow ID. A Client holding a handle
-by Workflow ID follows the chain: `handle.result()` waits for the last run.
+Each run gets a new Run ID under the same Workflow ID. A Client stub created
+from the Workflow ID alone follows the chain: `WorkflowStub.getResult(...)`
+waits for the last run.
 -->
 
 ---
@@ -93,27 +94,29 @@ layout: code-walkthrough
 heading: "Continue-As-New in practice: a monthly subscription"
 notes:
   - Bill every month for as long as the subscription lives. No end date
-  - Charge the card, then record the month in <code>monthsBilled</code>, the state carried forward
+  - Charge the card, then count the cycle in <code>cyclesCompleted</code>, the state carried forward
   - A durable 30-day Timer. The Workflow costs nothing while it waits
-  - Ask the SDK. <code>continueAsNewSuggested</code> turns true as this run's history nears its limits
+  - Ask the SDK. <code>isContinueAsNewSuggested</code> turns true as this run's history nears its limits
   - Start a fresh run with an empty history and <strong>only</strong> the state it needs. <code>continueAsNew</code>
 ---
 
 ::code::
 
-```ts {all|6|7-8|9|11|12}
-const { chargeMonthly } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "5 minutes",
-});
+```java {all|8|9-10|11|13|14}
+private final SubscriptionActivities activities = Workflow.newActivityStub(
+    SubscriptionActivities.class,
+    ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofMinutes(5)).build());
 
-export async function subscriptionWorkflow(sub: Subscription): Promise<void> {
+@Override
+public void run(SubscriptionInput input) {
+  int cyclesCompleted = input.cyclesCompleted();
   while (true) {
-    await chargeMonthly(sub);
-    sub.monthsBilled += 1;
-    await sleep("30 days");
+    activities.chargeSubscription(input.subscriptionId(), cyclesCompleted + 1);
+    cyclesCompleted++;
+    Workflow.sleep(Duration.ofDays(30));
 
-    if (workflowInfo().continueAsNewSuggested) {
-      await continueAsNew<typeof subscriptionWorkflow>(sub);
+    if (Workflow.getInfo().isContinueAsNewSuggested()) {
+      Workflow.continueAsNew(new SubscriptionInput(input.subscriptionId(), cyclesCompleted));
     }
   }
 }
@@ -124,37 +127,46 @@ Source: PPT slide 118. The original was a status monitor that continued as new
 on every loop and built a `newContinueAsNewStub`. This is the shape you would
 actually ship: a subscription that bills every month for years, and stays in one
 run until the Server says its history is getting big.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/continueasnew/SubscriptionWorkflowImpl.java,
+run by ContinueAsNewTest. `SubscriptionInput`, `cyclesCompleted` and
+`chargeSubscription` are the names the Continue-As-New Workshop uses.
 
 - **Build 1 - the loop.** No end date. Without Continue-As-New, a subscription
   that runs for ten years builds one enormous history.
-- **Build 2 - the charge.** An ordinary Activity with its own retries. The month
-  counter lives on `sub`, the input, which is why it survives the jump to a new
-  run.
-- **Build 3 - the Timer.** Two Events in history and no Worker slot for 30 days;
-  the Worker can evict the Workflow from its cache while it waits. `"30 days"`
-  keeps the slide simple; a real biller would compute the next calendar date
-  from `Date.now()`, which is deterministic inside a Workflow.
-- **Build 4 - the check.** `workflowInfo().continueAsNewSuggested` is the
-  Server's hint, set well before the warning thresholds from two slides back:
-  by default around 4K Events or 4 MB of history, or 90% of the Update limit.
-  Call `workflowInfo()` each time rather than caching it; the value changes as
-  the run goes on. Checking it every month, at a safe point between charges,
-  beats picking an arbitrary "every N months". (`historyLength` and
-  `historySize` are there too if you want your own threshold.)
-- **Build 5 - continue.** `continueAsNew(sub)` never resolves. It throws
-  internally to end the run, and the new run starts at the top of
-  `subscriptionWorkflow` with `sub` as its input: same Workflow ID, fresh
-  history. The type parameter checks `sub` against the Workflow's parameters.
+- **Build 2 - the charge.** An ordinary Activity with its own retries. The cycle
+  counter starts from `input.cyclesCompleted()`, the input, which is why it
+  survives the jump to a new run.
+- **Build 3 - the Timer.** Two Events in history and nothing running for 30
+  days; the Worker can evict the Workflow from its cache while it waits, which
+  frees its Workflow thread.
+  `Duration.ofDays(30)` keeps the slide simple; a real biller would compute the
+  next calendar date from `Workflow.currentTimeMillis()`, the deterministic
+  clock, never `System.currentTimeMillis()`.
+- **Build 4 - the check.** `Workflow.getInfo().isContinueAsNewSuggested()` is
+  the Server's hint, set well before the warning thresholds from two slides
+  back: by default around 4K Events or 4 MB of history, or 90% of the Update
+  limit. Call `Workflow.getInfo()` each time rather than caching the answer; the
+  value changes as the run goes on. Checking it every month, at a safe point
+  between charges, beats picking an arbitrary "every N months".
+  (`getHistoryLength()` and `getHistorySize()` are there too if you want your
+  own threshold.)
+- **Build 5 - continue.** `Workflow.continueAsNew(...)` never returns. The SDK
+  unwinds the Workflow thread to end the run (so never wrap it in a
+  `catch (Throwable t)`), and the new run starts at the top of `run` with
+  the new `SubscriptionInput` as its input: same Workflow ID, fresh history. For
+  compile-time checking of the arguments, `Workflow.newContinueAsNewStub(SubscriptionWorkflow.class)`
+  gives you a stub whose `run(...)` does the same thing.
 
-How does it stop? Cancel the Workflow (`handle.cancel()`, or
-`temporal workflow cancel`). The cancellation reaches the 30-day sleep as a
-`CancelledFailure` and the subscription ends as Cancelled; catch it (check with
-`isCancellation(err)`) if you want a final "subscription closed" Activity, run
-inside a `CancellationScope.nonCancellable`.
+How does it stop? Cancel the Workflow (`WorkflowStub.cancel()`, or
+`temporal workflow cancel`). The cancellation reaches the 30-day
+`Workflow.sleep` as a `CanceledFailure` and the subscription ends as Canceled;
+catch it if you want a final "subscription closed" Activity, run inside
+`Workflow.newDetachedCancellationScope(...)` so it is not cancelled too.
 
 If the Workflow has Signal or Update handlers (a "change plan" Signal, say),
 wait for them before continuing, or Continue-As-New cuts them off:
-`await condition(allHandlersFinished)` just before `continueAsNew`.
+`Workflow.await(() -> Workflow.isEveryHandlerFinished())` just before
+`continueAsNew`.
 -->
 
 ---
@@ -176,8 +188,11 @@ checkpoint. Keep it lean: if your state interface grows without bound, you have
 a different problem. Large state belongs in blob storage, with a reference
 passed as the checkpoint.
 
-It goes through the Data Converter like any Workflow argument, so plain JSON:
-no class instances, no `Map` or `Set`, and a `Date` arrives as a string.
+It goes through the Data Converter like any Workflow argument, which by default
+is Jackson JSON. A record or a plain class with a no-arg constructor and
+getters round-trips; `java.time` types are supported; anything Jackson cannot
+rebuild (an interface-typed field, a lambda, a live connection) does not belong
+in it.
 -->
 
 ---

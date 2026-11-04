@@ -8,10 +8,12 @@
   `clicks: 4`), so arrow keys and a clicker work; each button jumps to its
   action, and the next one is outlined. Each step shows the CLI command an
   engineer would run, its output, and the Events it adds. Workflow Task events are left out, as the UI's compact
-  view does. Everything here matches snippets/src/resumable.workflows.ts and
-  what snippets/tests/runtime/resumable.test.ts checks: one attempt on a
-  non-retryable failure, a Query that adds nothing to history, a malformed fix
-  that is recorded but ignored, and one Workflow run from start to finish.
+  view does. Everything here matches the resumable package in snippets/
+  (TransferWorkflowImpl.java, TransferActivitiesImpl.java) and what
+  ResumableTest checks: one attempt on a non-retryable failure, a Query that
+  adds nothing to history, a malformed fix that is recorded but ignored, both
+  Signals in history, the Java SDK's default type names (TransferWorkflow,
+  ExecuteTransfer), and one Workflow run from start to finish.
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
@@ -31,17 +33,17 @@ type Step = {
 
 const ID = 'transfer-4471'
 const STARTED: Row[] = [
-  { event: 'WorkflowExecutionStarted', detail: 'transferWorkflow', tone: 'plain' },
-  { event: 'ActivityTaskScheduled', detail: 'executeTransfer → 99999999', tone: 'plain' },
+  { event: 'WorkflowExecutionStarted', detail: 'TransferWorkflow', tone: 'plain' },
+  { event: 'ActivityTaskScheduled', detail: 'ExecuteTransfer → 99999999', tone: 'plain' },
   { event: 'ActivityTaskStarted', detail: 'attempt 1', tone: 'plain' },
   { event: 'ActivityTaskFailed', detail: 'AccountNotFoundError · non-retryable', tone: 'fail' },
 ]
 const BAD_FIX: Row = { event: 'WorkflowExecutionSignaled', detail: 'retryWithCorrection "acct 1234"', tone: 'signal' }
 const GOOD_FIX: Row[] = [
   { event: 'WorkflowExecutionSignaled', detail: 'retryWithCorrection "12345678"', tone: 'signal' },
-  { event: 'ActivityTaskScheduled', detail: 'executeTransfer → 12345678', tone: 'plain' },
+  { event: 'ActivityTaskScheduled', detail: 'ExecuteTransfer → 12345678', tone: 'plain' },
   { event: 'ActivityTaskStarted', detail: 'attempt 1', tone: 'plain' },
-  { event: 'ActivityTaskCompleted', detail: 'executeTransfer', tone: 'ok' },
+  { event: 'ActivityTaskCompleted', detail: 'ExecuteTransfer', tone: 'ok' },
   { event: 'WorkflowExecutionCompleted', detail: '"Transfer of 500 to 12345678 completed"', tone: 'ok' },
 ]
 const signal = (input: string) =>
@@ -55,7 +57,7 @@ const STEPS: Step[] = [
   },
   {
     stage: 'parked', status: '?', account: '99999999', rows: STARTED, fresh: STARTED.length,
-    term: { cmd: `temporal workflow start --type transferWorkflow --workflow-id ${ID} ...`, out: `Running execution: WorkflowId ${ID}` },
+    term: { cmd: `temporal workflow start --type TransferWorkflow --workflow-id ${ID} ...`, out: `Running execution: WorkflowId ${ID}` },
     say: 'One attempt, not three: an unknown account is <strong>non-retryable</strong>. The Workflow did not fail. It is still <strong>Running</strong>, parked. Your alert fires.',
   },
   {
