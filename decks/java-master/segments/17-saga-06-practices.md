@@ -10,21 +10,20 @@ layout: default
   Activity fails after partial completion; the compensation no-ops if nothing happened.
 - **Use idempotency keys for forward Activities.** Pass a unique identifier, such as
   a Workflow ID, so retries do not create duplicate side effects.
-- **Set `startToCloseTimeout` on compensation Activities.** Avoid `scheduleToCloseTimeout`
-  on compensations, and Workflow-level timeouts. Let compensations retry until they
+- **Set a Start-To-Close Timeout on compensation Activities.** Avoid
+  `setScheduleToCloseTimeout` on compensations, and Workflow-level timeouts. Let compensations retry until they
   succeed.
 
 <!--
-Source: Temporal docs, Saga pattern page (Best practices). Ported from the
-Python Deck.
+Source: Temporal docs, Saga pattern page (Best practices).
 
 Two minutes for both best practices slides. These are the docs page's best
 practices, in its order.
 
 Say which ones the lab code shows and which it deliberately does not:
 - Shown: idempotent compensations (the `IfReserved` / `IfCharged` guards),
-  register before execution, `startToCloseTimeout` on every
-  Activity.
+  register before execution, `setStartToCloseTimeout` on every
+  Activity, compensations included.
 - Not shown: idempotency keys (`chargePayment` fails non-retryable instead), and
   retrying compensations until they succeed. The lab caps every Activity at two
   attempts so failures show up in seconds. Say this out loud: it is the line
@@ -47,13 +46,16 @@ layout: default
   reason.
 
 <!--
-Source: Temporal docs, Saga pattern page (Best practices). Ported from the
-Python Deck.
+Source: Temporal docs, Saga pattern page (Best practices).
 
-In the lab code: log and continue is the inner try/catch in the unwind loop,
-and re-throwing is the `throw err` at the end of the catch block. The lab
-passes the whole `Order`, a handful of small fields; pass a reference once the
-input can grow.
+In the lab code: continue is `setContinueWithError(true)` on the Saga's
+options, and re-throwing is the `throw e` at the end of the catch block. The
+Saga helper does not log a failed compensation: it swallows it, and the
+failure is visible only as an `ActivityTaskFailed` Event in the History. If
+you need the log line and the alert, write the unwind yourself: a
+`Deque<Runnable>` and a loop with a try/catch around each undo. The lab passes
+the whole `Order` record, a handful of small fields; pass a reference once
+the input can grow.
 -->
 
 ---
@@ -80,8 +82,7 @@ layout: default
 </style>
 
 <!--
-Source: Temporal docs, Saga pattern page (Common pitfalls). Ported from the
-Python Deck.
+Source: Temporal docs, Saga pattern page (Common pitfalls).
 
 One minute. The docs page's pitfalls.
 
@@ -99,24 +100,28 @@ notes:
 
 ::code::
 
-```ts {all|1|2-5|6}
-export async function releaseInventoryIfReserved(order: Order): Promise<void> {
-  if (!ledger.isReserved(order.orderId)) {
-    console.log(`[compensate] nothing reserved for ${order.orderId}, no-op`);
+```java {all|2|3-6|7}
+@Override
+public void releaseInventoryIfReserved(Order order) {
+  if (!Ledger.isReserved(order.orderId())) {
+    System.out.println("[compensate] nothing reserved for " + order.orderId() + ", no-op");
     return;
   }
-  ledger.record(`release:${order.orderId}`);
+  Ledger.record("release:" + order.orderId());
 }
 ```
 
 <!--
-Source: workshops/saga-order-fulfillment/solution/src/activities.ts, lines 55-61,
-doc comment trimmed. Ported from the Python Deck.
+Source: workshops/saga-order-fulfillment/solution/src/main/java/io/temporal/devdays/saga/OrderActivitiesImpl.java,
+TODO markers trimmed.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/saga/OrderActivitiesImpl.java
 
-An Activity in TypeScript is a plain exported async function in its own module;
-the Worker registers the module, and the Workflow imports only its type.
+An Activity in Java is a method on an `@ActivityInterface`; this is its
+implementation in `OrderActivitiesImpl`. The Worker registers an instance with
+`registerActivitiesImplementations`, and the Workflow only ever sees the
+interface, through its Activity stub.
 
-`ledger.isReserved` stands in for the check a real system makes: reading the
+`Ledger.isReserved` stands in for the check a real system makes: reading the
 reservation's status, or the gateway's own idempotency key. The lab keeps it in
 memory so the effect is visible in the Worker terminal.
 -->

@@ -18,7 +18,8 @@ layout: default
 
 - [Recover business processes without restarting](https://docs.temporal.io/guides/recover-without-restart)
 - [Saga pattern in the Temporal docs](https://docs.temporal.io/design-patterns/saga-pattern)
-- [TypeScript sample: Saga with array-based compensations](https://github.com/temporalio/samples-typescript/tree/main/saga)
+- [Java sample: trip booking Saga with `io.temporal.workflow.Saga`](https://github.com/temporalio/samples-java/tree/main/core/src/main/java/io/temporal/samples/bookingsaga)
+- [Java SDK reference: `io.temporal.workflow.Saga`](https://javadoc.io/doc/io.temporal/temporal-sdk/latest/io/temporal/workflow/Saga.html)
 
 </div>
 
@@ -27,11 +28,14 @@ layout: default
 </style>
 
 <!--
-Source: Temporal docs, Saga pattern page (Related). Ported from the Python Deck.
+Source: Temporal docs, Saga pattern page (Related).
 
-Thirty seconds. "Related" from the docs page, with only the TypeScript sample.
-Note the sample registers each compensation after its step; this section
-registered before, and the "When to register" slide says when after is fine.
+Thirty seconds. "Related" from the docs page, with the Java sample and the
+`Saga` class reference. The sample has the same shape as this section: it
+registers each compensation before its step, catches `ActivityFailure`, and
+re-throws. It also wraps `saga.compensate()` in
+`Workflow.newDetachedCancellationScope`, so the undos still run when the
+Workflow is cancelled, which the lab code does not handle.
 
 Child Workflows and Heartbeats, covered earlier in this Deck, both extend what
 the room just built: a Saga step can be a Child Workflow, and a long step

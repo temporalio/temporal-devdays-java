@@ -9,7 +9,7 @@ Split a change across services into steps, and give every step an **undo**. If a
 later step fails, run the undos for the steps that already happened, in reverse.
 
 <!--
-Source: Temporal docs, Saga pattern page (Overview). Ported from the Python Deck.
+Source: Temporal docs, Saga pattern page (Overview).
 
 Thirty seconds. Every slide from here to Related follows the Saga pattern page in
 the Temporal docs, in its order and its words. Only the code is different: it is
@@ -31,7 +31,7 @@ layout: default
   between services.
 
 <!--
-Source: Temporal docs, Saga pattern page (Problem). Ported from the Python Deck.
+Source: Temporal docs, Saga pattern page (Problem).
 
 One minute. Make it concrete with the lab's order: the stock is reserved, the
 card is charged, and the courier says there is nobody to pick it up. Two effects

@@ -17,7 +17,7 @@
 
   Additions to the template machinery:
     - a data strip under the canvas: the Order input, the Workflow's
-      `compensations` list, and the ledger of what downstream systems did,
+      `Saga` (its compensations), and the ledger of what downstream systems did,
       set per step
     - same-row edges that run right to left (the unwind walks backwards)
     - ?embed=1: transparent background, no page heading or Back/Next row, and
@@ -280,11 +280,11 @@ html.embed .legend { display: none; }
    ============================================================ */
 
 const FILES = {
-  "workflow.ts":   "var(--f1)",
-  "activities.ts": "var(--f2)",
+  "OrderFulfillmentWorkflowImpl.java": "var(--f1)",
+  "OrderActivitiesImpl.java":     "var(--f2)",
 };
 
-/* The input, from starter.ts --fail-dispatch. */
+/* The input, from Starter.java --fail-dispatch. */
 const ORDER = [
   ["orderId", '"ORD-7F3A21"'],
   ["sku", '"widget"'],
@@ -292,13 +292,13 @@ const ORDER = [
   ["failDispatch", "true"],
 ];
 
-const RUN      = { id: "run",      kind: "workflow", title: "Workflow",          fn: "orderFulfillmentWorkflow",   file: "workflow.ts",    col: 1, row: 1 };
-const RESERVE  = { id: "reserve",  kind: "activity", title: "Step 1",            fn: "reserveInventory",             file: "activities.ts", col: 2, row: 1 };
-const CHARGE   = { id: "charge",   kind: "activity", title: "Step 2",            fn: "chargePayment",                file: "activities.ts", col: 3, row: 1 };
-const DISPATCH = { id: "dispatch", kind: "activity", title: "Step 3",            fn: "dispatchCourier",              file: "activities.ts", col: 4, row: 1 };
-const FAILED   = { id: "failed",   kind: "decision", title: "Workflow ends",     fn: "Failed: throw err",            file: "workflow.ts",    col: 1, row: 2 };
-const RELEASE  = { id: "release",  kind: "activity", title: "Compensation",      fn: "releaseInventoryIfReserved",   file: "activities.ts", col: 2, row: 2 };
-const REFUND   = { id: "refund",   kind: "activity", title: "Compensation",      fn: "refundPaymentIfCharged",       file: "activities.ts", col: 3, row: 2 };
+const RUN      = { id: "run",      kind: "workflow", title: "Workflow",          fn: "OrderFulfillmentWorkflow",   file: "OrderFulfillmentWorkflowImpl.java",    col: 1, row: 1 };
+const RESERVE  = { id: "reserve",  kind: "activity", title: "Step 1",            fn: "reserveInventory",             file: "OrderActivitiesImpl.java", col: 2, row: 1 };
+const CHARGE   = { id: "charge",   kind: "activity", title: "Step 2",            fn: "chargePayment",                file: "OrderActivitiesImpl.java", col: 3, row: 1 };
+const DISPATCH = { id: "dispatch", kind: "activity", title: "Step 3",            fn: "dispatchCourier",              file: "OrderActivitiesImpl.java", col: 4, row: 1 };
+const FAILED   = { id: "failed",   kind: "decision", title: "Workflow ends",     fn: "Failed: throw e",              file: "OrderFulfillmentWorkflowImpl.java",    col: 1, row: 2 };
+const RELEASE  = { id: "release",  kind: "activity", title: "Compensation",      fn: "releaseInventoryIfReserved",   file: "OrderActivitiesImpl.java", col: 2, row: 2 };
+const REFUND   = { id: "refund",   kind: "activity", title: "Compensation",      fn: "refundPaymentIfCharged",       file: "OrderActivitiesImpl.java", col: 3, row: 2 };
 
 const PANES = [
   {
@@ -328,12 +328,12 @@ const PANES = [
 ];
 
 /* Steps light one hop at a time, in EXECUTION order.
-   comps: the Workflow's `compensations` list after this step (null: none kept).
+   comps: the undos in the Workflow's `Saga` after this step, newest first (null: none kept).
    ledger: what the downstream systems did so far, oldest first.
    stranded / fresh: ledger entries to mark. */
 const STEPS = {
   without: [
-    { node: "run", text: "The Worker runs <code>orderFulfillmentWorkflow</code> for an order whose courier will fail. No compensations are kept.",
+    { node: "run", text: "The Worker runs <code>OrderFulfillmentWorkflow</code> for an order whose courier will fail. No compensations are kept.",
       comps: null, ledger: [] },
     { node: "reserve", edge: "run>reserve", text: "<code>reserveInventory</code> holds the widget. The effect lands in the inventory system, outside the Workflow.",
       comps: null, ledger: ["reserve"], fresh: "reserve" },
@@ -345,23 +345,23 @@ const STEPS = {
       comps: null, ledger: ["reserve", "charge"], stranded: ["reserve", "charge"] },
   ],
   with: [
-    { node: "run", text: "Same order, same failing courier. The Workflow starts with an empty <code>compensations</code> array in Workflow state.",
+    { node: "run", text: "Same order, same failing courier. The Workflow starts with an empty <code>Saga</code> in Workflow state.",
       comps: [], ledger: [] },
-    { node: "release", text: "<code>compensations.unshift(...)</code> registers <code>releaseInventoryIfReserved</code> <strong>before</strong> the step it undoes. Nothing runs yet.",
+    { node: "release", text: "<code>saga.addCompensation(...)</code> registers <code>releaseInventoryIfReserved</code> <strong>before</strong> the step it undoes. Nothing runs yet.",
       comps: ["releaseInventoryIfReserved"], ledger: [], freshComp: 0 },
     { node: "reserve", edge: "run>reserve", text: "<code>reserveInventory</code> holds the widget. Its undo is already on record.",
       comps: ["releaseInventoryIfReserved"], ledger: ["reserve"], fresh: "reserve" },
-    { node: "refund", text: "<code>refundPaymentIfCharged</code> is unshifted to the front before the charge, so a charge that lands and then fails is still covered.",
+    { node: "refund", text: "<code>refundPaymentIfCharged</code> is added on top before the charge, so a charge that lands and then fails is still covered.",
       comps: ["refundPaymentIfCharged", "releaseInventoryIfReserved"], ledger: ["reserve"], freshComp: 0 },
     { node: "charge", edge: "reserve>charge", text: "<code>chargePayment</code> captures 4999 cents.",
       comps: ["refundPaymentIfCharged", "releaseInventoryIfReserved"], ledger: ["reserve", "charge"], fresh: "charge" },
     { node: "dispatch", edge: "charge>dispatch", text: "<code>dispatchCourier</code> throws <code>CourierUnavailable</code>. The <code>catch</code> sees an <code>ActivityFailure</code> and starts the unwind.",
       comps: ["refundPaymentIfCharged", "releaseInventoryIfReserved"], ledger: ["reserve", "charge"] },
-    { node: "refund", edge: "dispatch>refund", text: "A forward <code>for...of</code> starts with the newest, at the front: <code>refundPaymentIfCharged</code> finds a charge standing and refunds it.",
+    { node: "refund", edge: "dispatch>refund", text: "<code>saga.compensate()</code> starts with the newest: <code>refundPaymentIfCharged</code> finds a charge standing and refunds it.",
       comps: ["refundPaymentIfCharged", "releaseInventoryIfReserved"], ledger: ["reserve", "charge", "refund"], fresh: "refund" },
     { node: "release", edge: "refund>release", text: "Then <code>releaseInventoryIfReserved</code> finds the reservation standing and releases it. Newest first: refund, then release.",
       comps: ["refundPaymentIfCharged", "releaseInventoryIfReserved"], ledger: ["reserve", "charge", "refund", "release"], fresh: "release" },
-    { node: "failed", edge: "release>failed", text: "<code>throw err</code> re-throws the original failure. The Workflow ends Failed, and every effect it caused has been undone.",
+    { node: "failed", edge: "release>failed", text: "<code>throw e</code> re-throws the original failure. The Workflow ends Failed, and every effect it caused has been undone.",
       comps: ["refundPaymentIfCharged", "releaseInventoryIfReserved"], ledger: ["reserve", "charge", "refund", "release"] },
   ],
 };
@@ -521,8 +521,8 @@ function renderData(pane, steps) {
 
   dataEl.innerHTML = `
     <div class="card order"><h3>Input <span>Order</span></h3><div class="kv">${order}</div></div>
-    <div class="card"><h3>Workflow state <span>compensations</span></h3>${comps}</div>
-    <div class="card"><h3>Downstream systems <span>ledger.ts</span></h3>${ledger}</div>`;
+    <div class="card"><h3>Workflow state <span>saga</span></h3>${comps}</div>
+    <div class="card"><h3>Downstream systems <span>Ledger.java</span></h3>${ledger}</div>`;
 }
 
 function render() {
