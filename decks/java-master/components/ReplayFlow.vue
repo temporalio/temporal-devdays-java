@@ -5,9 +5,13 @@
   The Activity panel shows getDistance running on its own click, then struck
   through during replay, where its result is read from history instead.
 
-  Ported from the Python Deck, which follows the example on
-  docs.temporal.io/encyclopedia/event-history/event-history-python: a distance
-  lookup, a 30-minute timer, a bill. Set `clicks:` to STEPS.length - 1.
+  It follows the example on docs.temporal.io/encyclopedia/event-history: a
+  distance lookup, a 30-minute timer, a bill. Set `clicks:` to STEPS.length - 1.
+
+  CODE and ACTIVITY are the `pizza` and `getDistance` methods in
+  snippets/src/main/java/io/temporal/devdays/essentials/history/Pizza.java,
+  line for line; EventHistoryTest checks EVENTS is the history that code
+  really records. Edit them together.
 
   Workflow Task events are left out to keep the history readable; the presenter
   notes say so. An event appears on the click in its `at`; a step's `matched`
@@ -28,17 +32,17 @@ type Step = {
 }
 
 const CODE = [
-  'export async function pizzaWorkflow(order: Order): Promise<Bill> {',
-  '  const distance = await getDistance(order.address);',
-  "  await sleep('30 minutes');",
-  '  const bill = await sendBill(order, distance);',
+  'public Bill pizza(Order order) {',
+  '  int distance = activities.getDistance(order.address());',
+  '  Workflow.sleep(Duration.ofMinutes(30));',
+  '  Bill bill = activities.sendBill(order, distance);',
   '  return bill;',
   '}',
 ]
 
 const ACTIVITY = [
-  'export async function getDistance(address: string): Promise<number> {',
-  '  return await maps.distance(STORE, address);',
+  'public int getDistance(String address) {',
+  '  return maps.distance(STORE, address);',
   '}',
 ]
 
@@ -68,7 +72,7 @@ const STEPS: Step[] = [
     line: 1,
     worker: A_RUN,
     command: { text: 'ScheduleActivityTask', mode: 'sent' },
-    say: 'Worker A runs the Workflow code. Calling getDistance through proxyActivities does not run it: it sends a Command, and the Service records ActivityTaskScheduled.',
+    say: 'Worker A runs the Workflow code. Calling getDistance through the Activity stub does not run it: it sends a Command, and the Service records ActivityTaskScheduled.',
   },
   {
     line: 1,
@@ -80,7 +84,7 @@ const STEPS: Step[] = [
     line: 2,
     worker: A_RUN,
     command: { text: 'StartTimer', mode: 'sent' },
-    say: 'sleep sends StartTimer. Thirty minutes later the Service records TimerFired.',
+    say: 'Workflow.sleep sends StartTimer. Thirty minutes later the Service records TimerFired.',
   },
   {
     line: -1,
@@ -100,7 +104,7 @@ const STEPS: Step[] = [
     worker: B_REPLAY,
     command: { text: 'StartTimer', mode: 'matched' },
     matched: [4, 5],
-    say: 'The timer already fired, so the sleep returns at once. No second thirty-minute wait.',
+    say: 'The timer already fired, so Workflow.sleep returns at once. No second thirty-minute wait.',
   },
   {
     line: 3,
