@@ -1,5 +1,5 @@
 // Checks every code-walkthrough slide, click by click, that each bubble sits on
-// the lines it is lit against. The static test (snippets/tests/walkthroughs.test.ts)
+// the lines it is lit against. The static test (snippets WalkthroughsTest.java)
 // proves the right lines are lit; this proves the layout put the bubble there.
 //
 // Walks the whole deck rather than hardcoding slide numbers, so it survives

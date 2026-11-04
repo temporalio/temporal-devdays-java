@@ -1,9 +1,9 @@
 ---
 theme: ./theme
-title: "Temporal Essentials: TypeScript"
+title: "Temporal Essentials: Java"
 info: |
-  ## Temporal Essentials, TypeScript
-  The Foundations Deck and the pool of conceptual slides every TypeScript
+  ## Temporal Essentials, Java
+  The Foundations Deck and the pool of conceptual slides every Java
   DevDays Workshop draws from: the case for Temporal, local development, the
   four entities, design patterns, Workflows, Activities, Workers, Clients,
   Signals, Queries and Updates; then Child Workflows, Continue-As-New,
@@ -13,7 +13,7 @@ info: |
 
   Pull the segments a Workshop needs with `src:` and leave the rest behind.
 author: Nikolay Advolodkin
-keywords: temporal,typescript,workflows,activities,workers,signals,queries,updates,patterns,saga,observability
+keywords: temporal,java,workflows,activities,workers,signals,queries,updates,patterns,saga,observability
 colorSchema: dark
 fonts:
   sans: "Inter"
@@ -22,7 +22,7 @@ fonts:
   italic: false
 mdc: true
 themeConfig:
-  footer: "Temporal Essentials | TypeScript"
+  footer: "Temporal Essentials | Java"
   toc:
     - id: why
       label: Why Temporal
@@ -84,14 +84,12 @@ variant: planet-teal
 
 # Temporal Essentials
 
-## TypeScript · Foundations
+## Java · Foundations
 
 <!--
-Temporal Essentials, ported from the Python DevDays Deck of the same name
-(temporalio/temporal-devdays-python, decks/python-master), which was itself
-ported from the master PowerPoint used for a three-session Foundations Dev Day.
-Every snippet here is idiomatic TypeScript against @temporalio 1.24, and the
-code on each slide is proven by the runnable modules in `snippets/`.
+Temporal Essentials, the Foundations Deck for a Java Dev Day. Every snippet
+here is idiomatic Java 21 against the Temporal Java SDK 1.40.0, and the code on
+each slide is proven by the runnable snippets in `snippets/`.
 
 The opening follows decks/_template: cover, presenter, agenda
 (`segments/00-open.md`). Every topic segment after it is self-contained and
@@ -152,12 +150,17 @@ minutes: 15
 heading: "Lab: The First Workflow"
 ---
 
-**[t.mp/ddnov122026](https://t.mp/ddnov122026)**
+**[play.instruqt.com/temporal/tracks/first-workflow-java](https://play.instruqt.com/temporal/tracks/first-workflow-java)**
 
 <!--
-The lab for Workflows, Activities, Workers and the Client: take an order app
-that breaks under failure and make it durable. The minutes are the Track's time limit, not a measured
-time; trim them to fit the day.
+The lab for Workflows, Activities, Workers and the Client: Your First Workflow,
+a money transfer. Learners start a transfer with no Worker and watch it wait,
+start the Worker and read the Event History in the Temporal UI, then crash the
+Worker mid-bug, fix it, and watch the same transfer finish. The minutes are the Track's time limit, not a measured time; trim them to
+fit the day.
+
+Before a Dev Day, swap the Track link on this slide and the two lab slides
+below for that Dev Day's short link, so the room types one URL all day.
 
 Leave this slide up while people open the lab. It is the only URL they have to
 type, so give them a moment on it.
@@ -203,8 +206,8 @@ and Updates.
 
 The tardigrade is Temporal's mascot, chosen because tardigrades survive almost
 anything, which is the Durable Execution pitch in one animal. The wizard hat and
-wand were added for the Python Deck on top of the official art (from the
-"Temporal in Space" blog post); there is no official wizard version, so check
+wand were added on top of the official art (from the "Temporal in Space" blog
+post); there is no official wizard version, so check
 with brand before using it outside a workshop.
 -->
 
@@ -226,11 +229,9 @@ minutes: 35
 heading: Labs
 ---
 
-**[t.mp/ddnov122026](https://t.mp/ddnov122026)**
-
-- Child Workflows · 15 min
-- Heartbeats · 10 min
-- Continue-As-New · 10 min
+- [Child Workflows](https://play.instruqt.com/temporal/tracks/child-workflows-java) · 15 min
+- [Heartbeats](https://play.instruqt.com/temporal/tracks/heartbeats-java) · 10 min
+- [Continue-As-New](https://play.instruqt.com/temporal/tracks/continue-as-new-java) · 10 min
 
 <!--
 The labs for the three sections just taught, in this order. Each is its own
@@ -240,15 +241,15 @@ is 30.
 - **Child Workflows** (workshops/child-workflows): run one child, chain
   children five deep and follow a failure up from the bottom, fan out and watch
   the default Parent Close Policy terminate every child, then write the fan in
-  with Promise.all.
+  with Async.function and Promise.allOf.
 - **Heartbeats** (workshops/heartbeats-shipment): crash a Worker ten items into
   a packing job and watch the retry wait out the start-to-close timeout and
-  start again at item 0; then add a heartbeatTimeout, heartbeat(packed) and a
-  resume from heartbeatDetails, crash it again, and watch the retry start in
+  start again at item 0; then add setHeartbeatTimeout, heartbeat(packed) and a
+  resume from getHeartbeatDetails, crash it again, and watch the retry start in
   seconds where it left off.
 - **Continue-As-New** (workshops/continue-as-new-subscription): a 30-cycle
   subscription is terminated by the Service at its history limit, then rolls
-  over on continueAsNewSuggested and finishes. The lab's dev server lowers the
+  over on isContinueAsNewSuggested() and finishes. The lab's dev server lowers the
   limits to 40 and 200 Events so both happen in seconds.
 
 Leave this slide up while people open the labs.
@@ -268,7 +269,7 @@ The Saga pattern
 
 <!--
 Segments 17-saga-01 to 17-saga-07 follow the Temporal docs' Saga pattern page
-section by section, ported from the Python Deck. The code matches this repo's
+section by section. The code matches this repo's
 Saga Workshop (workshops/saga-order-fulfillment), so the lab that closes the
 section uses the names the slides just taught.
 -->
@@ -307,10 +308,10 @@ minutes: 25
 heading: "Lab: The Saga Pattern"
 ---
 
-**[t.mp/ddnov122026](https://t.mp/ddnov122026)**
+**[play.instruqt.com/temporal/tracks/saga-java](https://play.instruqt.com/temporal/tracks/saga-java)**
 
 <!--
-The same lab the Saga Workshop Deck closes on (decks/saga-order-fulfillment):
+The Saga Workshop's lab (workshops/saga-order-fulfillment):
 an order that reserves stock, charges a card and dispatches a courier, and
 undoes the first two when the third fails.
 

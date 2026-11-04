@@ -1,8 +1,8 @@
 {
-  "name": "typescript-master-slides",
+  "name": "java-master-slides",
   "version": "1.0.0",
   "private": true,
-  "description": "Temporal Essentials in TypeScript: the Foundations Deck and the pool of conceptual slides every TypeScript DevDays Workshop draws from",
+  "description": "Temporal Essentials in Java: the Foundations Deck and the pool of conceptual slides every Java DevDays Workshop draws from",
   "scripts": {
     "dev": "slidev --open",
     "build": "slidev build",

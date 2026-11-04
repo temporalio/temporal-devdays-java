@@ -13,10 +13,19 @@ All created via code. Use or repurpose the content to fit your next Dev Day!
 
 | Workshop | Level | Stack | Deck | Code + Track | Lab | Duration | Author | Model | Deck cost ($) | Track cost ($) |
 |---|---|---|---|---|---|--:|---|---|--:|--:|
-| The Saga Pattern | Advanced | Java · compensation | Pending | [`workshops/saga-order-fulfillment/`](workshops/saga-order-fulfillment/) | [`saga-java`](https://play.instruqt.com/temporal/tracks/saga-java) | 25 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.73 |
-| Child Workflows | Foundations | Java · child workflows | Pending | [`workshops/child-workflows/`](workshops/child-workflows/) | [`child-workflows-java`](https://play.instruqt.com/temporal/tracks/child-workflows-java) | 15 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 3.98 |
-| Continue-As-New | Advanced | Java · event history | Pending | [`workshops/continue-as-new-subscription/`](workshops/continue-as-new-subscription/) | [`continue-as-new-java`](https://play.instruqt.com/temporal/tracks/continue-as-new-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 2.86 |
-| Activity Heartbeats | Advanced | Java · activities | Pending | [`workshops/heartbeats-shipment/`](workshops/heartbeats-shipment/) | [`heartbeats-java`](https://play.instruqt.com/temporal/tracks/heartbeats-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.45 |
+| The Saga Pattern | Advanced | Java · compensation | [`segments/17-saga-*`](decks/java-master/segments/17-saga-01-overview.md) | [`workshops/saga-order-fulfillment/`](workshops/saga-order-fulfillment/) | [`saga-java`](https://play.instruqt.com/temporal/tracks/saga-java) | 25 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.73 |
+| Child Workflows | Foundations | Java · child workflows | [`segments/14-child-workflows.md`](decks/java-master/segments/14-child-workflows.md) | [`workshops/child-workflows/`](workshops/child-workflows/) | [`child-workflows-java`](https://play.instruqt.com/temporal/tracks/child-workflows-java) | 15 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 3.98 |
+| Continue-As-New | Advanced | Java · event history | [`segments/15-continue-as-new.md`](decks/java-master/segments/15-continue-as-new.md) | [`workshops/continue-as-new-subscription/`](workshops/continue-as-new-subscription/) | [`continue-as-new-java`](https://play.instruqt.com/temporal/tracks/continue-as-new-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 2.86 |
+| Activity Heartbeats | Advanced | Java · activities | [`segments/16-heartbeating.md`](decks/java-master/segments/16-heartbeating.md) | [`workshops/heartbeats-shipment/`](workshops/heartbeats-shipment/) | [`heartbeats-java`](https://play.instruqt.com/temporal/tracks/heartbeats-java) | 10 min | Nikolay Advolodkin | Opus 5.5 (100%) | Pending | 4.45 |
+| Temporal Essentials | Foundations | Java · Workflows, Activities, Workers, Clients, Signals, Queries, Updates, Sagas, versioning, timeouts and retries, observability | [`decks/java-master/`](decks/java-master/) | Deck only; code slides proven in [`snippets/`](decks/java-master/snippets/) | per section, linked in the Deck | Pending | Nikolay Advolodkin | Pending | Pending | — |
+
+**Temporal Essentials is a Deck, not a Workshop**: it has no Track, Exercise or
+Solution of its own, so its Track cost is a dash. It is the Foundations Deck
+delivered end to end, and the pool of Segments every Workshop's Deck imports
+with `src:`; a Workshop's **Deck** column points at its Segment. See
+[ADR 0004](docs/adr/0004-temporal-essentials-is-java-master-ported-from-typescript.md)
+and [`snippets/README.md`](decks/java-master/snippets/README.md) for how its
+code slides are proven.
 
 A Workshop created for this program lives here, under `workshops/<slug>/` with
 its Deck in `decks/<slug>/`. A Workshop that already has a Temporal-owned topic

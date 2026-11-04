@@ -9,18 +9,17 @@
   Frontmatter usage:
     ---
     layout: code-walkthrough
-    heading: TypeScript Workflow anatomy
+    heading: Java Workflow anatomy
     notes:
-      - Everything the Workflow needs comes from this one package
-      - "<strong>Type only</strong> — the implementation never enters the sandbox"
-      - Calling the proxy schedules the Activity. Not a direct function call
+      - The implementation of the Workflow interface
+      - "<strong>Activity stub</strong>: a proxy, not the Activity itself"
+      - Calling the stub schedules the Activity. Not a direct method call
     ---
 
     ::code::
 
-    ```ts {all|2|3|10}
-    // workflow.ts
-    import { proxyActivities } from '@temporalio/workflow';
+    ```java {all|1|4-5|8}
+    public class TransferWorkflowImpl implements TransferWorkflow {
     ...
     ```
 
@@ -35,7 +34,7 @@
   explanation. `bubbleWidth` sets that column (default 32%) and `minCodeSize`
   the floor the code may shrink to in what is left.
 
-  Checked in CI: snippets/tests/walkthroughs.test.ts fails if a step lands on
+  Checked in CI: snippets/src/test/java/.../deck/WalkthroughsTest.java fails if a step lands on
   a blank line or a note's `<code>` is not on its lit lines, and
   scripts/check-walkthroughs.mjs fails if a rendered bubble sits more than half
   a line off. Write `<code class="ref">` for code a note mentions that is
