@@ -44,6 +44,13 @@
       <artifactId>temporal-aws-lambda</artifactId>
       <version>${temporal.version}</version>
     </dependency>
+    <!-- The SDK-metrics slide: Micrometer's Prometheus registry, at the
+         Micrometer version temporal-sdk depends on. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <version>1.9.9</version>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-simple</artifactId>

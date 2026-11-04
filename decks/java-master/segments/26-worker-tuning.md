@@ -9,11 +9,13 @@ layout: section
 </ZiggyHero>
 
 <!--
-Source: PPT slides 187-206. Ported from the Python Deck.
+Source: PPT slides 187-206.
 
-The defaults on these slides are the TypeScript SDK's, checked against
-`@temporalio/worker` 1.24. If you deliver this against a newer SDK, re-check
-them; the snippets package type-checks every option name the slides use.
+The defaults on these slides are the Java SDK's, read from the
+`temporal-sdk` 1.40.0 source (`WorkerOptions`, `WorkerFactoryOptions`). If you
+deliver this against a newer SDK, re-check them: `TuningTest` asserts every
+default in the tables, and `TuningOptions.java` compiles every option name the
+slides use.
 -->
 
 ---
@@ -41,9 +43,13 @@ Walk the numbers on the diagram:
 
 Activity Tasks work the same way, minus the cache.
 
-In a TypeScript Worker, the polling, slots and cache bookkeeping live in the
-SDK's Rust core; your Workflow code runs in V8 isolates on a worker thread, and
-your Activities run on the Node.js main thread.
+In a Java Worker, everything in the diagram is threads. Each poller is a
+thread holding a long-poll open. Workflow Tasks run on the Workflow Task
+executor, and each Workflow's own code runs on Workflow threads from a pool
+shared by every Worker in the `WorkerFactory` (and kept while the Workflow is
+cached). Activities run on the Activity executor, one thread per running
+Activity: platform threads by default, or virtual threads with
+`WorkerOptions.setUsingVirtualThreadsOnActivityWorker(true)` on Java 21.
 
 The original slides 189-190 asked "what happens if a Worker goes down while
 executing a Workflow?" Answer: another Worker picks up the next Workflow Task,
@@ -62,19 +68,21 @@ layout: default
 <!--
 Source: PPT slide 192.
 
-What one Workflow Task does inside the Worker. Signals, Updates and Queries
-arrive from outside and are handled at defined points. Handlers run first, then
-the Workflow body runs until every promise is blocked on something (a Timer,
-an Activity, a `condition`), then Queries are answered. Repeat until the
-Workflow completes or continues as new.
+What one Workflow Task does inside the Worker. This is Temporal's loop, not a
+language runtime's: the Java SDK runs it in its deterministic runner. Signals,
+Updates and Queries arrive from outside and are handled at defined points.
+Handlers run first, then the Workflow's threads run one at a time until every
+one is blocked on something the SDK controls (`Workflow.sleep`, an Activity
+stub call, `Workflow.await`, `Promise.get()`), then Queries are answered.
+Repeat until the Workflow completes or continues as new.
 
-"Until blocked" is why a synchronous, CPU-heavy loop in Workflow code is so
-harmful: nothing else in that Task can run until it awaits. With the default
-`reuseV8Context`, every Workflow on the Worker shares one V8 context on one
-thread (`workflowThreadPoolSize` defaults to 1), so a busy loop holds up the
-other Workflows too. After 5 seconds without yielding, the Worker gives up and
-fails the Workflow Task ("Script execution timed out after 5000ms"); the Task
-is retried and fails the same way until the code changes.
+"Until blocked" is why CPU-heavy or blocking code in a Workflow is so harmful:
+the SDK only gets control back when the code calls into it. A busy loop,
+`Thread.sleep`, or real IO holds the Task. After 1 second without yielding
+(`WorkerOptions.setDefaultDeadlockDetectionTimeout`, default 1000 ms) the
+Worker fails the Workflow Task with `[TMPRL1101] Potential deadlock detected`;
+the Task is retried and fails the same way until the code changes.
+`TuningTest` proves it, and that the Workflow stays open meanwhile.
 -->
 
 ---
@@ -131,32 +139,33 @@ layout: default
 
 # Compute settings
 
-| Setting                                  | TypeScript default |
-| ---------------------------------------- | -----------------: |
-| `maxConcurrentWorkflowTaskExecutions`    |                 40 |
-| `maxConcurrentActivityTaskExecutions`    |                100 |
-| `maxConcurrentLocalActivityExecutions`   |                100 |
-| `spec.containers[].resources.limits.cpu` |       yours to set |
+| Setting                                    | Java default |
+| ------------------------------------------ | -----------: |
+| `setMaxConcurrentWorkflowTaskExecutionSize` |          200 |
+| `setMaxConcurrentActivityExecutionSize`    |          200 |
+| `setMaxConcurrentLocalActivityExecutionSize` |        200 |
+| `spec.containers[].resources.limits.cpu`   | yours to set |
 
 <!--
 Source: PPT slides 196-197.
 
 These are execution slots: how many Tasks of each kind this Worker will run at
-once. They are `Worker.create({...})` options.
+once. They are `WorkerOptions.newBuilder()` setters, passed to
+`factory.newWorker(taskQueue, options)`.
 
-Two Node.js-specific notes:
+Two Java-specific notes:
 
-- Activities run on the Worker's Node.js event loop, which is single-threaded.
-  For Activities that mostly `await` IO, 100 concurrent is cheap: they
-  interleave on that one loop. But synchronous CPU work in an Activity (a big
-  `JSON.parse`, hashing, image processing) blocks every other Activity on that
-  Worker until it finishes, and they cannot heartbeat meanwhile. Move CPU-heavy
-  work to `worker_threads` (a pool such as Piscina) or a child process, or give it its own Worker on its
-  own Task Queue with a low `maxConcurrentActivityTaskExecutions`.
-- Workflow code runs in V8 isolates on Worker threads. With the default
-  `reuseV8Context: true`, one thread runs every Workflow (`workflowThreadPoolSize`
-  defaults to 1), so CPU-heavy Workflow Tasks do not run in parallel within a
-  process. More Worker Processes, not more slots, is usually the answer.
+- Each running Activity holds a thread. For Activities that mostly wait on IO,
+  200 concurrent is cheap, and on Java 21
+  `setUsingVirtualThreadsOnActivityWorker(true)` makes it cheaper still. But
+  CPU-heavy Activities (big JSON parsing, hashing, image processing) compete
+  for the same cores, and 200 of them at once just thrash. Give them their own
+  Worker on their own Task Queue with a low
+  `setMaxConcurrentActivityExecutionSize`, close to the core count.
+- Workflow Tasks do run in parallel, up to the slot count, but CPU-heavy
+  Workflow code is a bug in its own right: it trips the deadlock detector after
+  1 second (previous section). More Worker Processes, not more slots, is the
+  answer when Workflow Tasks are CPU-bound.
 -->
 
 ---
@@ -167,19 +176,17 @@ proseMax: 36
 
 ::code::
 
-```ts
-const worker = await Worker.create({
-  connection,
-  taskQueue: "order-task-queue",
-  workflowsPath,
-  activities,
-  tuner: {
-    tunerOptions: {
-      targetMemoryUsage: 0.8,
-      targetCpuUsage: 0.8,
-    },
-  },
-});
+```java
+Worker worker =
+    factory.newWorker(
+        "order-task-queue",
+        WorkerOptions.newBuilder()
+            .setWorkerTuner(
+                ResourceBasedTuner.newBuilder()
+                    .setControllerOptions(
+                        ResourceBasedControllerOptions.newBuilder(0.8, 0.8).build())
+                    .build())
+            .build());
 ```
 
 ::default::
@@ -191,8 +198,16 @@ limit: the percentage of CPU and memory in use.
 <!--
 Source: PPT slide 198.
 
-`tuner` is mutually exclusive with the `maxConcurrent*Executions` options on
-the previous slide. Pick one approach: `Worker.create` throws if you set both.
+`ResourceBasedControllerOptions.newBuilder(0.8, 0.8)` is target memory use,
+then target CPU use, as fractions of the machine. Out of the box the tuner
+allows between 5 and 500 Workflow Task slots, and between 1 and 1,000 Activity
+and Local Activity slots (`ResourceBasedTuner.DEFAULT_*_SLOT_OPTIONS`);
+`setWorkflowSlotOptions` and friends change those bounds.
+
+`setWorkerTuner` is mutually exclusive with the
+`setMaxConcurrent*ExecutionSize` setters on the previous slide. Pick one
+approach: `newWorker` throws `IllegalStateException` if you set both
+(`TuningTest` proves it).
 
 For most workloads Temporal's docs recommend fixed-size slots, tuned to your
 hardware: they perform better and behave more predictably. The resource-based
@@ -205,10 +220,14 @@ One catch: `temporal_worker_task_slots_available` only reports for fixed-size
 slots. With a resource-based tuner, watch `temporal_worker_task_slots_used`
 and the `temporal_resource_slots_*` gauges instead.
 
-To mix them, pass a slot supplier per Task type instead of `tunerOptions`:
-`workflowTaskSlotSupplier: { type: "fixed-size", numSlots: 40 }` and
-`activityTaskSlotSupplier: { type: "resource-based", tunerOptions: {...} }`,
-plus `localActivityTaskSlotSupplier` and `nexusTaskSlotSupplier`.
+To mix them, build a `CompositeTuner` from one slot supplier per Task type, in
+the order Workflow, Activity, Local Activity, Nexus: for example
+`new FixedSizeSlotSupplier<>(200)` for Workflows and
+`ResourceBasedSlotSupplier.createForActivity(controller, options)` for
+Activities. Every resource-based supplier must share one
+`ResourceBasedController`. `TuningOptions.composite()` compiles that example.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/tuning/TunedWorker.java
 -->
 
 ---
@@ -217,21 +236,29 @@ layout: default
 
 # Memory settings
 
-| Setting                                     | TypeScript default |
-| ------------------------------------------- | -----------------: |
-| `maxCachedWorkflows`                        | from the Node heap |
-| `spec.containers[].resources.limits.memory` |       yours to set |
+| Setting                                      |      Java default |
+| -------------------------------------------- | ----------------: |
+| `setWorkflowCacheSize` (factory)             |               600 |
+| `setMaxWorkflowThreadCount` (factory)        |               600 |
+| `-Xmx` / `-XX:MaxRAMPercentage`              | JVM: 25% of RAM   |
+| `spec.containers[].resources.limits.memory`  |      yours to set |
 
 <!--
 Source: PPT slides 199-200.
 
-`maxCachedWorkflows` is the sticky cache from the observability segment. Each
-cached Workflow holds its state in memory, so the right number depends on how
-big your Workflows are. The default is computed from the Node.js heap limit:
-about 600 Workflows per GB of heap above the first 200 MB, and at least 10.
-That means the heap limit you give Node (`--max-old-space-size`) changes the
-cache size. Watch `temporal_sticky_cache_size` against container memory and
-adjust.
+`setWorkflowCacheSize` is the sticky cache from the observability segment.
+Both it and `setMaxWorkflowThreadCount` are `WorkerFactoryOptions`, shared by
+every Worker the factory creates. Each cached Workflow holds its state, and its
+parked Workflow threads, in memory, so the right number depends on how big
+your Workflows are. Usually the thread count caps the cache first. With
+`setUsingVirtualWorkflowThreads(true)` (Java 21) the thread cap is ignored and
+the cache size is the limit.
+
+The heap is the JVM's, not Temporal's: by default a container-aware JVM takes
+25% of the container's memory for heap (`MaxRAMPercentage`). Set `-Xmx` or
+`-XX:MaxRAMPercentage` deliberately, leaving room under the container limit
+for thread stacks, metaspace and direct buffers. Watch
+`temporal_sticky_cache_size` against heap use and adjust.
 -->
 
 ---
@@ -240,29 +267,34 @@ layout: default
 
 # IO settings
 
-| Setting                                | TypeScript default |
-| -------------------------------------- | -----------------: |
-| `workflowTaskPollerBehavior` (maximum) |                 10 |
-| `activityTaskPollerBehavior` (maximum) |                 10 |
-| `maxTaskQueueActivitiesPerSecond`      |          unlimited |
-| Namespace APS                          |  set per Namespace |
+| Setting                                | Java default |
+| -------------------------------------- | -----------: |
+| `setMaxConcurrentWorkflowTaskPollers`  |            5 |
+| `setMaxConcurrentActivityTaskPollers`  |            5 |
+| `setMaxTaskQueueActivitiesPerSecond`   |    unlimited |
+| Namespace APS                          | set per Namespace |
 
 <!--
 Source: PPT slides 201-202.
 
 Pollers are the IO side: how many long-polls the Worker keeps open to the
-server. The default maximum is 10, or the slot count if that is lower. The
-older `maxConcurrentWorkflowTaskPolls` and `maxConcurrentActivityTaskPolls`
-options set the same simple maximum; the poller behaviours are the newer way.
+server. Workflow Task pollers alternate between the normal and the sticky
+queue, so that number is never below 2 (a 1 is raised to 2).
 
-`{ type: "autoscaling" }` lets the server tell the Worker how many pollers it
-needs (between 1 and 100 by default, starting at 5). Worth trying before
-hand-tuning the maximum.
+The newer way is a poller behaviour:
+`setWorkflowTaskPollersBehavior(new PollerBehaviorAutoscaling())` (and the
+Activity equivalent) lets the server tell the Worker how many pollers it needs,
+between 1 and 100 by default, starting at 5. Worth trying before hand-tuning
+the maximum. It is mutually exclusive with the fixed poller count.
+`new PollerBehaviorSimpleMaximum(n)` is the fixed count expressed as a
+behaviour. If you set neither and your Namespace auto-enrolls Workers into
+poller autoscaling, the Worker uses autoscaling.
 
-`maxTaskQueueActivitiesPerSecond` is a server-side limit across every Worker on
-the Task Queue, which is how you protect a fragile downstream API.
-`maxActivitiesPerSecond` is the per-Worker equivalent. Namespace APS (Actions
-Per Second) is a Temporal Cloud limit on your Namespace, set by your account.
+`setMaxTaskQueueActivitiesPerSecond` is a server-side limit across every Worker
+on the Task Queue, which is how you protect a fragile downstream API.
+`setMaxWorkerActivitiesPerSecond` is the per-Worker equivalent. Namespace APS
+(Actions Per Second) is a Temporal Cloud limit on your Namespace, set by your
+account.
 -->
 
 ---
@@ -280,8 +312,15 @@ Source: PPT slide 203.
 Both are what Temporal is designed to survive, and neither loses a Workflow. But
 both show up in the metrics first: poll failures and request latency for the
 network, and a sawtooth in `temporal_sticky_cache_size` for a Worker that keeps
-being OOM-killed and restarted. In Node, an out-of-memory crash is often the
-V8 heap limit, not the container limit: "JavaScript heap out of memory".
+being OOM-killed and restarted.
+
+In Java, "out of memory" means one of two things, and they need different
+fixes. `java.lang.OutOfMemoryError: Java heap space` is the JVM hitting its own
+`-Xmx`: raise the heap or shrink the cache. A container OOM-kill (exit code
+137, no Java stack trace) is the whole process, heap plus thread stacks plus
+metaspace, going over the container limit: the heap is set too close to the
+limit. Add `-XX:+ExitOnOutOfMemoryError` so a Worker that runs out of heap
+restarts cleanly instead of limping on.
 -->
 
 ---
@@ -312,9 +351,9 @@ layout: default
 
 # Compute settings to metrics
 
-- `maxConcurrentWorkflowTaskExecutions` → `temporal_worker_task_slots_available`
+- `setMaxConcurrentWorkflowTaskExecutionSize` → `temporal_worker_task_slots_available`
   with `worker_type="WorkflowWorker"`
-- `maxConcurrentActivityTaskExecutions` → `temporal_worker_task_slots_available`
+- `setMaxConcurrentActivityExecutionSize` → `temporal_worker_task_slots_available`
   with `worker_type="ActivityWorker"`
 - CPU-intensive logic → `temporal_workflow_task_execution_latency`
 
@@ -328,11 +367,12 @@ How to read this: each setting on the left has a metric on the right that tells
 you whether it is the constraint. Slots available near zero means raise the
 slot count, or add Workers. High execution latency with slots to spare means
 the CPU is the constraint, and more slots will only make it worse (the Theory of
-constraints slide).
+constraints slide). `ObservabilityMetricsTest` checks both `worker_type` tags.
 
-For CPU-heavy Activities in Node, also watch event-loop lag (for example
-`monitorEventLoopDelay` from `node:perf_hooks`): a blocked loop shows up there
-before it shows up in Temporal's metrics.
+On a JVM, also watch garbage collection: bind Micrometer's `JvmGcMetrics` and
+`JvmMemoryMetrics` to the same registry and graph `jvm_gc_pause_seconds`. Long
+GC pauses stall every thread in the Worker, pollers included, and show up there
+before they show up in Temporal's metrics.
 -->
 
 ---
