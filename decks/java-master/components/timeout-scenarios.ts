@@ -3,7 +3,8 @@
 //
 // `at` is the click that reveals a thing; click 0 shows the empty diagram and
 // the first caption. A slide using a scenario must set `clicks:` to
-// `say.length - 1` (checked by snippets/tests/runtime/timeout-scenarios.test.ts).
+// `say.length - 1` (checked by TimeoutScenariosTest in
+// snippets/src/test/java/io/temporal/devdays/essentials/timeouts/).
 //
 // The history panel shows only events Temporal records, in the compact form
 // the Web UI uses (Workflow Task events are left out of Activity scenarios).
@@ -55,12 +56,12 @@ export const SCENARIOS: Record<string, Scenario> = {
   'workflow-task': {
     lanes: ['Client', SERVICE, 'Worker'],
     rows: [
-      { kind: 'msg', from: 0, to: 1, label: 'workflow.start(orderWorkflow)', sub: 'app asks Temporal to start it', at: 1, t: '0s' },
-      { kind: 'msg', from: 1, to: 2, label: 'run orderWorkflow code', sub: 'a polling Worker gets the Workflow Task', at: 2, t: '0s' },
+      { kind: 'msg', from: 0, to: 1, label: 'WorkflowClient.start(...)', sub: 'app asks Temporal to start it', at: 1, t: '0s' },
+      { kind: 'msg', from: 1, to: 2, label: 'run OrderWorkflow code', sub: 'a polling Worker gets the Workflow Task', at: 2, t: '0s' },
       { kind: 'note', lane: 2, text: 'Worker crashes holding the task', tone: 'fail', at: 3, t: '2s' },
       { kind: 'wait', text: 'no response…', at: 4, t: '2–10s' },
       { kind: 'note', lane: 1, text: 'Workflow Task Timeout · reschedule', tone: 'fail', at: 5, t: '10s' },
-      { kind: 'msg', from: 1, to: 2, label: 'run orderWorkflow code', sub: 'another Worker replays the history', at: 6, t: '10s' },
+      { kind: 'msg', from: 1, to: 2, label: 'run OrderWorkflow code', sub: 'another Worker replays the history', at: 6, t: '10s' },
       { kind: 'msg', from: 2, to: 1, label: 'next step: run chargePayment', sub: 'Worker reports what the Workflow wants', tone: 'ok', at: 7, t: '10s' },
     ],
     windows: [
@@ -68,19 +69,19 @@ export const SCENARIOS: Record<string, Scenario> = {
       { label: 'Workflow Task 10s', from: 5, to: 6, col: 1, at: 6, close: { at: 7, tone: 'ok', text: 'completed' } },
     ],
     events: [
-      { name: 'WorkflowExecutionStarted', detail: 'orderWorkflow', at: 1 },
-      { name: 'WorkflowTaskScheduled', detail: 'orderWorkflow', at: 1 },
-      { name: 'WorkflowTaskStarted', detail: 'orderWorkflow', at: 2 },
-      { name: 'WorkflowTaskTimedOut', detail: 'orderWorkflow · START_TO_CLOSE', tone: 'fail', at: 5 },
+      { name: 'WorkflowExecutionStarted', detail: 'OrderWorkflow', at: 1 },
+      { name: 'WorkflowTaskScheduled', detail: 'OrderWorkflow', at: 1 },
+      { name: 'WorkflowTaskStarted', detail: 'OrderWorkflow', at: 2 },
+      { name: 'WorkflowTaskTimedOut', detail: 'OrderWorkflow · START_TO_CLOSE', tone: 'fail', at: 5 },
       { name: 'retry scheduled: not an Event until it completes', ghost: true, at: 5 },
-      { name: 'WorkflowTaskScheduled', detail: 'orderWorkflow · attempt 2', at: 7 },
-      { name: 'WorkflowTaskStarted', detail: 'orderWorkflow', at: 7 },
-      { name: 'WorkflowTaskCompleted', detail: 'orderWorkflow', tone: 'ok', at: 7 },
-      { name: 'ActivityTaskScheduled', detail: 'chargePayment', at: 7 },
+      { name: 'WorkflowTaskScheduled', detail: 'OrderWorkflow · attempt 2', at: 7 },
+      { name: 'WorkflowTaskStarted', detail: 'OrderWorkflow', at: 7 },
+      { name: 'WorkflowTaskCompleted', detail: 'OrderWorkflow', tone: 'ok', at: 7 },
+      { name: 'ActivityTaskScheduled', detail: 'ChargePayment', at: 7 },
     ],
     say: [
       'A Workflow Task: one chunk of Workflow code a Worker runs, up to the next thing it waits on.',
-      'Your app calls client.workflow.start. Temporal records WorkflowExecutionStarted and queues the first Workflow Task.',
+      'Your app calls WorkflowClient.start. Temporal records WorkflowExecutionStarted and queues the first Workflow Task.',
       'A polling Worker picks it up. It has 10 seconds to report what the Workflow wants to do next.',
       'The Worker process dies while holding the task.',
       'The Service cannot see a crash, so it waits out the timeout.',
@@ -100,17 +101,17 @@ export const SCENARIOS: Record<string, Scenario> = {
       { kind: 'note', lane: 1, text: 'Start-To-Close expired · retry in 1s', tone: 'fail', at: 5, t: '10s' },
       { kind: 'msg', from: 1, to: 2, label: 'run chargePayment · attempt 2', sub: 'another Worker gets the task', at: 6, t: '11s' },
       { kind: 'msg', from: 2, to: 1, label: 'chargePayment returned', sub: 'Worker reports the result', tone: 'ok', at: 7, t: '12s' },
-      { kind: 'msg', from: 1, to: 0, label: 'chargePayment(order) resolves', sub: 'Workflow resumes with the result', tone: 'ok', at: 8, t: '12s' },
+      { kind: 'msg', from: 1, to: 0, label: 'chargePayment(order) returns', sub: 'Workflow resumes with the result', tone: 'ok', at: 8, t: '12s' },
     ],
     windows: [
       { label: 'Start-To-Close 10s', from: 1, to: 4, col: 0, at: 2, close: { at: 5, tone: 'fail', text: 'expired' } },
       { label: 'Start-To-Close 10s', from: 5, to: 6, col: 1, at: 6, close: { at: 7, tone: 'ok', text: 'closed in 1s' } },
     ],
     events: [
-      { name: 'ActivityTaskScheduled', detail: 'chargePayment', at: 1 },
+      { name: 'ActivityTaskScheduled', detail: 'ChargePayment', at: 1 },
       { name: 'attempt 1 timed out: a retry, not an Event', ghost: true, at: 5 },
-      { name: 'ActivityTaskStarted', detail: 'chargePayment · attempt 2', at: 7 },
-      { name: 'ActivityTaskCompleted', detail: 'chargePayment · attempt 2', tone: 'ok', at: 7 },
+      { name: 'ActivityTaskStarted', detail: 'ChargePayment · attempt 2', at: 7 },
+      { name: 'ActivityTaskCompleted', detail: 'ChargePayment · attempt 2', tone: 'ok', at: 7 },
     ],
     say: [
       'One Activity call with a 10-second Start-To-Close Timeout: the limit on a single attempt.',
@@ -121,7 +122,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       'At 10s the attempt times out, and the Retry Policy schedules attempt 2 after its 1s initial interval.',
       'Another Worker polls and gets attempt 2, with a fresh 10 seconds.',
       'It succeeds. Only now does history record ActivityTaskStarted, and it says attempt 2.',
-      'chargePayment resolves with the result in the Workflow. The Workflow never saw attempt 1 at all.',
+      'chargePayment returns the result in the Workflow. The Workflow never saw attempt 1 at all.',
     ],
   },
 
@@ -133,14 +134,14 @@ export const SCENARIOS: Record<string, Scenario> = {
       { kind: 'note', lane: 2, text: 'no Worker polling', tone: 'fail', at: 3, t: '0s' },
       { kind: 'wait', text: 'one minute passes', at: 4, t: '0–60s' },
       { kind: 'note', lane: 1, text: 'Schedule-To-Start expired · never retried', tone: 'fail', at: 5, t: '60s' },
-      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(TimeoutFailure)', sub: 'the awaited call rejects in the Workflow', tone: 'fail', at: 6, t: '60s' },
+      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(TimeoutFailure)', sub: 'the stub call throws in the Workflow', tone: 'fail', at: 6, t: '60s' },
     ],
     windows: [
       { label: 'Schedule-To-Start 1m', from: 1, to: 4, col: 0, at: 2, close: { at: 5, tone: 'fail', text: 'expired' } },
     ],
     events: [
-      { name: 'ActivityTaskScheduled', detail: 'chargePayment', at: 1 },
-      { name: 'ActivityTaskTimedOut', detail: 'chargePayment · SCHEDULE_TO_START', tone: 'fail', at: 5 },
+      { name: 'ActivityTaskScheduled', detail: 'ChargePayment', at: 1 },
+      { name: 'ActivityTaskTimedOut', detail: 'ChargePayment · SCHEDULE_TO_START', tone: 'fail', at: 5 },
     ],
     say: [
       'Schedule-To-Start: how long an Activity Task may wait in the Task Queue for a Worker.',
@@ -149,7 +150,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       'No Worker is polling: they are all down, overloaded, or polling a different Task Queue name.',
       'The task just sits there. Nothing is wrong with the Activity code.',
       'At one minute it times out. Schedule-To-Start is never retried.',
-      'The awaited call rejects with an ActivityFailure whose cause is a TimeoutFailure. Usually the fix is more Workers, not this timeout; it is off by default.',
+      'The stub call throws an ActivityFailure whose cause is a TimeoutFailure. Usually the fix is more Workers, not this timeout; it is off by default.',
     ],
   },
 
@@ -171,10 +172,10 @@ export const SCENARIOS: Record<string, Scenario> = {
       { label: 'Start-To-Close 1h', from: 6, to: 7, col: 0, at: 7, close: { at: 8, tone: 'ok', text: 'closed' } },
     ],
     events: [
-      { name: 'ActivityTaskScheduled', detail: 'packShipment', at: 1 },
+      { name: 'ActivityTaskScheduled', detail: 'PackShipment', at: 1 },
       { name: 'attempt 1 timed out: a retry, not an Event', ghost: true, at: 6 },
-      { name: 'ActivityTaskStarted', detail: 'packShipment · attempt 2', at: 8 },
-      { name: 'ActivityTaskCompleted', detail: 'packShipment · attempt 2', tone: 'ok', at: 8 },
+      { name: 'ActivityTaskStarted', detail: 'PackShipment · attempt 2', at: 8 },
+      { name: 'ActivityTaskCompleted', detail: 'PackShipment · attempt 2', tone: 'ok', at: 8 },
     ],
     say: [
       'A long Activity: an hour of Start-To-Close, and a 30-second Heartbeat Timeout.',
@@ -199,7 +200,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       { kind: 'note', lane: 1, text: 'Start-To-Close expired · retry in 2s', tone: 'fail', at: 5, t: '7s' },
       { kind: 'msg', from: 1, to: 2, label: 'run chargePayment · attempt 3', sub: 'one second of budget left', at: 6, t: '9s' },
       { kind: 'note', lane: 1, text: 'Schedule-To-Close expired · no more attempts', tone: 'fail', at: 7, t: '10s' },
-      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(TimeoutFailure)', sub: 'the awaited call rejects in the Workflow', tone: 'fail', at: 8, t: '10s' },
+      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(TimeoutFailure)', sub: 'the stub call throws in the Workflow', tone: 'fail', at: 8, t: '10s' },
     ],
     windows: [
       { label: 'Schedule-To-Close 10s', from: 0, to: 6, col: 0, at: 1, close: { at: 7, tone: 'fail', text: 'expired' } },
@@ -208,10 +209,10 @@ export const SCENARIOS: Record<string, Scenario> = {
       { label: 'S-T-C 3s', from: 5, to: 6, col: 1, at: 6, close: { at: 7, tone: 'fail', text: 'cut short' } },
     ],
     events: [
-      { name: 'ActivityTaskScheduled', detail: 'chargePayment', at: 1 },
+      { name: 'ActivityTaskScheduled', detail: 'ChargePayment', at: 1 },
       { name: 'attempts 1 and 2 timed out: retries, not Events', ghost: true, at: 5 },
-      { name: 'ActivityTaskStarted', detail: 'chargePayment · attempt 3', at: 7 },
-      { name: 'ActivityTaskTimedOut', detail: 'chargePayment · SCHEDULE_TO_CLOSE', tone: 'fail', at: 7 },
+      { name: 'ActivityTaskStarted', detail: 'ChargePayment · attempt 3', at: 7 },
+      { name: 'ActivityTaskTimedOut', detail: 'ChargePayment · SCHEDULE_TO_CLOSE', tone: 'fail', at: 7 },
     ],
     say: [
       'Schedule-To-Close: a budget for the whole Activity, every attempt and every wait between them.',
@@ -222,7 +223,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       'Retry again, after 2s this time: the interval doubles.',
       'Attempt 3 starts at 9s, with only one second of budget left.',
       'At 10s the whole Activity times out, whatever the Retry Policy would still allow.',
-      'The awaited call rejects with an ActivityFailure caused by a TimeoutFailure. Bound retries with this, not with Maximum Attempts.',
+      'The stub call throws an ActivityFailure caused by a TimeoutFailure. Bound retries with this, not with Maximum Attempts.',
     ],
   },
 
@@ -239,18 +240,18 @@ export const SCENARIOS: Record<string, Scenario> = {
       { kind: 'msg', from: 1, to: 2, label: 'run chargePayment · attempt 3', at: 8, t: '3.4s' },
       { kind: 'msg', from: 2, to: 1, label: 'chargePayment threw', sub: '503 a third time', tone: 'fail', at: 9, t: '3.6s' },
       { kind: 'note', lane: 1, text: 'Maximum Attempts reached · no more retries', tone: 'fail', at: 10, t: '3.6s' },
-      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(ApplicationFailure)', sub: 'the awaited call rejects in the Workflow', tone: 'fail', at: 11, t: '3.6s' },
+      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(ApplicationFailure)', sub: 'the stub call throws in the Workflow', tone: 'fail', at: 11, t: '3.6s' },
     ],
     windows: [],
     events: [
-      { name: 'ActivityTaskScheduled', detail: 'chargePayment', at: 1 },
+      { name: 'ActivityTaskScheduled', detail: 'ChargePayment', at: 1 },
       { name: 'failed attempts are retries, not Events', ghost: true, at: 4 },
-      { name: 'ActivityTaskStarted', detail: 'chargePayment · attempt 3', at: 10 },
-      { name: 'ActivityTaskFailed', detail: 'chargePayment · MAXIMUM_ATTEMPTS_REACHED', tone: 'fail', at: 10 },
+      { name: 'ActivityTaskStarted', detail: 'ChargePayment · attempt 3', at: 10 },
+      { name: 'ActivityTaskFailed', detail: 'ChargePayment · MAXIMUM_ATTEMPTS_REACHED', tone: 'fail', at: 10 },
     ],
     say: [
       'A Retry Policy capped at three attempts, against a payment API that keeps returning 503.',
-      'The Workflow calls chargePayment, proxied with retry: { maximumAttempts: 3 }.',
+      'The Workflow calls chargePayment, through a stub built with setMaximumAttempts(3).',
       'A polling Worker runs attempt 1, which calls the API.',
       'The API fails, and chargePayment throws.',
       'Retry 1 of 2: wait the Initial Interval, 1 second.',
@@ -260,7 +261,7 @@ export const SCENARIOS: Record<string, Scenario> = {
       'Attempt 3.',
       'Fails a third time.',
       'Maximum Attempts reached. History now records the last attempt, and why it stopped.',
-      'The awaited call rejects with an ActivityFailure, and the Workflow decides what to do: alert, compensate, or escalate.',
+      'The stub call throws an ActivityFailure, and the Workflow decides what to do: alert, compensate, or escalate.',
     ],
   },
 
@@ -269,23 +270,23 @@ export const SCENARIOS: Record<string, Scenario> = {
     rows: [
       { kind: 'msg', from: 0, to: 1, label: 'chargePayment(order)', sub: 'Workflow asks Temporal to run it', at: 1, t: '0s' },
       { kind: 'msg', from: 1, to: 2, label: 'run chargePayment · attempt 1', sub: 'a polling Worker gets the task', at: 2, t: '0s' },
-      { kind: 'msg', from: 2, to: 1, label: 'throw ApplicationFailure.create(...)', sub: 'type: "CardDeclined", nonRetryable: true', tone: 'fail', at: 3, t: '0.3s' },
+      { kind: 'msg', from: 2, to: 1, label: 'throw newNonRetryableFailure(...)', sub: 'type "CardDeclined", non-retryable', tone: 'fail', at: 3, t: '0.3s' },
       { kind: 'note', lane: 1, text: 'non-retryable · stop, whatever the policy', tone: 'fail', at: 4, t: '0.3s' },
-      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(ApplicationFailure)', sub: 'cause.type === "CardDeclined"', tone: 'fail', at: 5, t: '0.3s' },
+      { kind: 'msg', from: 1, to: 0, label: 'throws ActivityFailure(ApplicationFailure)', sub: 'getCause().getType() is "CardDeclined"', tone: 'fail', at: 5, t: '0.3s' },
     ],
     windows: [],
     events: [
-      { name: 'ActivityTaskScheduled', detail: 'chargePayment', at: 1 },
-      { name: 'ActivityTaskStarted', detail: 'chargePayment · attempt 1', at: 4 },
-      { name: 'ActivityTaskFailed', detail: 'chargePayment · NON_RETRYABLE_FAILURE', tone: 'fail', at: 4 },
+      { name: 'ActivityTaskScheduled', detail: 'ChargePayment', at: 1 },
+      { name: 'ActivityTaskStarted', detail: 'ChargePayment · attempt 1', at: 4 },
+      { name: 'ActivityTaskFailed', detail: 'ChargePayment · NON_RETRYABLE_FAILURE', tone: 'fail', at: 4 },
     ],
     say: [
       'The same charge, but the card is declined. Retrying will never help.',
       'The Workflow calls chargePayment.',
       'A polling Worker runs attempt 1, which calls the payment API.',
-      'chargePayment throws an ApplicationFailure with type "CardDeclined" and nonRetryable: true.',
+      'chargePayment throws ApplicationFailure.newNonRetryableFailure, with type "CardDeclined".',
       'The Service stops at once, with retries left in the policy.',
-      'The awaited call rejects with an ActivityFailure whose cause.type is "CardDeclined", one attempt and 0.3 seconds later.',
+      'The stub call throws an ActivityFailure whose cause has type "CardDeclined", one attempt and 0.3 seconds later.',
     ],
   },
 }

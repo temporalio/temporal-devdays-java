@@ -38,6 +38,12 @@
       <artifactId>temporal-sdk</artifactId>
       <version>${temporal.version}</version>
     </dependency>
+    <!-- The Serverless Workers slide (22-more-features.md): compiled, never run. -->
+    <dependency>
+      <groupId>io.temporal</groupId>
+      <artifactId>temporal-aws-lambda</artifactId>
+      <version>${temporal.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-simple</artifactId>
