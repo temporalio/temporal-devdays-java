@@ -1,0 +1,55 @@
+name: java-master Deck
+
+# Temporal Essentials (decks/java-master): the code on every slide compiles,
+# matches its snippet, parses, lights the lines its bubble talks about, and does
+# what the speaker notes claim; then the rendered bubbles sit on those lines.
+on:
+  pull_request:
+    paths: ["decks/java-master/**", ".github/workflows/java-master-deck.yml"]
+  push:
+    branches: [main]
+    paths: ["decks/java-master/**"]
+
+# Read-only: both jobs only check out and test.
+permissions:
+  contents: read
+
+jobs:
+  snippets:
+    name: Code slides (compile, drift, parse, walkthrough steps, runtime)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: decks/java-master/snippets
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: decks/java-master/snippets/pom.xml
+      - run: mvn -B -q test
+
+  walkthroughs:
+    name: Walkthrough bubbles sit on their lines (rendered)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: decks/java-master
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: decks/java-master/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start the dev server
+        run: |
+          npx slidev --port 3030 > slidev.log 2>&1 &
+          npx --yes wait-on --timeout 120000 http://localhost:3030
+      - run: npm run check:walkthroughs
+      - if: failure()
+        run: cat slidev.log
