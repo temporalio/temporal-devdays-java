@@ -11,10 +11,10 @@ What fails, how it surfaces, and who retries it.
 </ZiggyHero>
 
 <!--
-Source: PPT slides 156-167. Ported from the Python Deck.
+Source: PPT slides 156-167.
 
 The original showed each code example twice, once per SDK, side by side. This
-Workshop is TypeScript only, so every pair became one TypeScript snippet.
+Workshop is Java only, so every pair became one Java snippet.
 -->
 
 ---
@@ -41,10 +41,12 @@ Source: PPT slide 157. Eight builds in the original; `v-clicks` gives one per
 bullet.
 
 The second classification maps directly onto a Retry Policy. Transient is the
-default policy doing its job. Intermittent is a longer `initialInterval` and a
-higher `backoffCoefficient` in the `retry` option. Permanent is
-`nonRetryable: true` on an `ApplicationFailure`: retrying it is only burning
-money.
+default policy doing its job. Intermittent is a longer `setInitialInterval` and
+a higher `setBackoffCoefficient` on the `RetryOptions` in your
+`ActivityOptions`. Permanent is `setNonRetryable(true)` on an
+`ApplicationFailure` (or `ApplicationFailure.newNonRetryableFailure(...)`), or
+the caller listing its type in `RetryOptions.setDoNotRetry(...)`: retrying it
+is only burning money.
 -->
 
 ---
@@ -60,7 +62,7 @@ layout: default
   - It matters for Activities, because they may run more than once
   - Temporal strongly recommends making your Activities idempotent
 - A Temporal failure thrown from Workflow code (`ApplicationFailure`, or a rethrown `ActivityFailure`) **fails the Workflow Execution**
-- Any other error fails the **Workflow Task**, which Temporal retries
+- Any other exception fails the **Workflow Task**, which Temporal retries
 - `ApplicationFailure` is the failure to throw on purpose
 
 </v-clicks>
@@ -69,19 +71,22 @@ layout: default
 Source: PPT slide 158.
 
 The original's second half was about another SDK's error return values and
-panics. The TypeScript mapping:
+panics. The Java mapping:
 
-- `throw ApplicationFailure.create(...)` from a Workflow ends the Workflow
-  Execution as Failed. That is a deliberate business decision.
-- Any other error, a `TypeError` or a plain `new Error(...)`, is treated as a
-  bug. The Workflow Task fails and is retried, and the Workflow stays open so
-  you can fix the code and redeploy. The UI shows it as a failing Workflow Task,
-  not a failed Workflow.
-- To make a specific error class fail the Workflow instead, list it in
-  `setWorkflowOptions({ failureExceptionTypes: [InvalidOrderError] }, myWorkflow)`
-  (matched with `instanceof`), or by name in the Worker option
-  `workflowFailureErrorTypes: { "*": ["InvalidOrderError"] }`. Both are marked
-  experimental in SDK 1.24.
+- `throw ApplicationFailure.newFailure(...)` from a Workflow ends the Workflow
+  Execution as Failed. That is a deliberate business decision. The same goes
+  for any other `TemporalFailure`, such as a rethrown `ActivityFailure`.
+- Any other exception, a `NullPointerException` or an
+  `IllegalArgumentException`, is treated as a bug. The Workflow Task fails and
+  is retried, and the Workflow stays open so you can fix the code and redeploy.
+  The UI shows it as a failing Workflow Task, not a failed Workflow.
+- To make a specific exception class fail the Workflow instead, register the
+  implementation with
+  `WorkflowImplementationOptions.newBuilder().setFailWorkflowExceptionTypes(InvalidOrderException.class)`
+  (subclasses match too) as the first argument to
+  `worker.registerWorkflowImplementationTypes(...)`.
+
+All three are proven in `ErrorHandlingTest`.
 -->
 
 ---
@@ -104,7 +109,7 @@ layout: default
 Source: PPT slide 159.
 
 Temporal's error model can seem counterintuitive at first. Normally, when a
-called function throws, you expect to catch that exact error in the caller.
+called method throws, you expect to catch that exact exception in the caller.
 Because of Temporal's design, you catch a wrapper instead.
 
 Each SDK uses its own native error handling; Temporal converts the errors into
@@ -123,9 +128,9 @@ layout: default
 <v-clicks>
 
 - Every failure in Temporal is represented as a **Temporal failure**
-- In TypeScript they all extend `TemporalFailure`, from `@temporalio/common`
-- An error thrown by an Activity reaches the Workflow as an **`ActivityFailure`**; a failed Child Workflow as a **`ChildWorkflowFailure`**
-- Its `cause` holds what actually happened: `ApplicationFailure`, `TimeoutFailure`, `CancelledFailure`
+- In Java they all extend `TemporalFailure`, in `io.temporal.failure`
+- An exception thrown by an Activity reaches the Workflow as an **`ActivityFailure`**; a failed Child Workflow as a **`ChildWorkflowFailure`**
+- Its `getCause()` holds what actually happened: `ApplicationFailure`, `TimeoutFailure`, `CanceledFailure`
 - You can catch and handle it in your Workflow, if you want
 
 </v-clicks>
@@ -133,23 +138,26 @@ layout: default
 <!--
 Source: PPT slide 160.
 
-The original's language note compared class hierarchies across SDKs. In
-TypeScript there is one hierarchy, rooted at `TemporalFailure`, and you inspect
-it with `instanceof`. Workflow code imports the classes from
-`@temporalio/workflow`, which re-exports them.
+The original's language note compared class hierarchies across SDKs. In Java
+there is one hierarchy, rooted at `TemporalFailure` in `io.temporal.failure`:
+`ApplicationFailure`, `ActivityFailure`, `ChildWorkflowFailure`,
+`CanceledFailure`, `TimeoutFailure`, `TerminatedFailure`, `ServerFailure` and
+`NexusOperationFailure`. They are unchecked exceptions: you catch them with
+`catch` and inspect them with `instanceof` (pattern matching keeps it short).
+Note the spelling: `CanceledFailure`, one L.
 
-On the client, a Workflow that failed makes `handle.result()` (or
-`client.workflow.execute`) reject with a `WorkflowFailedError` from
-`@temporalio/client`. That one is not a `TemporalFailure`: it is the client's
-wrapper, and its `cause` is the Workflow's failure, such as the
+On the client, a Workflow that failed makes the stub call (or
+`WorkflowStub.getResult`) throw `WorkflowFailedException`, from
+`io.temporal.client`. That one is not a `TemporalFailure`: it is the client's
+wrapper, and its `getCause()` is the Workflow's failure, such as the
 `ApplicationFailure` the Workflow threw.
 
 Cancellation can arrive wrapped, as an `ActivityFailure` or
-`ChildWorkflowFailure` whose cause is a `CancelledFailure`. To ask "is this a
-cancellation?" whatever the wrapping, use `isCancellation(err)` from
-`@temporalio/workflow`.
+`ChildWorkflowFailure` whose cause is a `CanceledFailure`, so check the cause
+as well as the exception itself.
 
-Don't extend these classes. The SDK's own comment says the only one your code
+Don't extend these classes; you can't. `TemporalFailure`'s constructor is
+package-private and `ApplicationFailure` is `final`. The only one your code
 should ever throw is `ApplicationFailure`.
 -->
 
@@ -157,23 +165,22 @@ should ever throw is `ApplicationFailure`.
 layout: code-walkthrough
 heading: Raising errors from an Activity
 notes:
-  - A message for humans. It shows up in the UI and in the Workflow's <code class="ref">ActivityFailure.cause</code>
+  - A message for humans. It shows up in the UI and in the Workflow's <code class="ref">ActivityFailure.getCause()</code>
   - A <strong>type</strong> for code. Retry Policies and Workflows match on it
   - Tell Temporal not to retry. This is a business rule, not a blip
 ---
 
 ::code::
 
-```ts {all|6|7|8}
-import { ApplicationFailure } from "@temporalio/common";
-
-export async function chargePayment(order: Order): Promise<string> {
-  if (!(await cardHasFunds(order))) {
-    throw ApplicationFailure.create({
-      message: "payment failed: insufficient funds",
-      type: "PaymentError",
-      nonRetryable: true,
-    });
+```java {all|5|6|7}
+@Override
+public String chargePayment(Order order) {
+  if (!cardHasFunds(order)) {
+    throw ApplicationFailure.newBuilder()
+        .setMessage("payment failed: insufficient funds")
+        .setType("PaymentError")
+        .setNonRetryable(true)
+        .build();
   }
   return gateway.charge(order);
 }
@@ -182,20 +189,29 @@ export async function chargePayment(order: Order): Promise<string> {
 <!--
 Source: PPT slide 161.
 
+This is a method of `PaymentActivitiesImpl`, which implements the
+`@ActivityInterface` `PaymentActivities`. `ApplicationFailure` comes from
+`io.temporal.failure`; the import is off the slide.
+
 - **Build 1 -** the message.
-- **Build 2 -** the type. Any other error an Activity throws becomes an
-  `ApplicationFailure` on the way out, with its class name as the type
-  (`TypeError`, say) and retryable. Throwing `ApplicationFailure` yourself lets
-  you choose the type, attach `details`, and mark it non-retryable.
-- **Build 3 -** `nonRetryable: true`. The shorthand is
-  `ApplicationFailure.nonRetryable(message, type)`. The alternative, when the
-  caller should decide, is `retry: { nonRetryableErrorTypes: ["PaymentError"] }`
-  in the Workflow's `proxyActivities` options.
+- **Build 2 -** the type. Any other exception an Activity throws becomes an
+  `ApplicationFailure` on the way out, with its fully-qualified class name as
+  the type (`java.lang.IllegalStateException`, say) and retryable. Throwing
+  `ApplicationFailure` yourself lets you choose the type, attach details with
+  `setDetails(...)`, and mark it non-retryable.
+- **Build 3 -** `setNonRetryable(true)`. The shorthand is
+  `ApplicationFailure.newNonRetryableFailure(message, type)`. The alternative,
+  when the caller should decide, is
+  `RetryOptions.newBuilder().setDoNotRetry("PaymentError")` in the
+  `ActivityOptions` the Workflow builds its stub with.
 
 Everything else, a timeout or a connection reset from `gateway.charge`, is left
 to throw normally, and the Retry Policy handles it. That is the right default.
 
-`@temporalio/activity` re-exports `ApplicationFailure` too; either import works.
+`ErrorHandlingTest` proves the Activity runs exactly once, and that a plain
+`IllegalStateException` arrives typed `java.lang.IllegalStateException`.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/errors/PaymentActivitiesImpl.java
 -->
 
 ---
@@ -203,29 +219,28 @@ layout: code-walkthrough
 heading: Handling an ActivityFailure in a Workflow
 notes:
   - Every Activity failure arrives as an <code>ActivityFailure</code>
-  - Inspect the <code>cause</code> to see what actually happened
-  - Timed out, cancelled, or a custom application failure with its <code>type</code>
+  - Inspect <code>getCause()</code> to see what actually happened
+  - Timed out, canceled, or a custom application failure with its <code>getType()</code>
   - Nothing matched. Rethrow, and the Workflow fails with the full cause chain
 ---
 
 ::code::
 
-```ts {all|5|6|7-13|15}
-export async function paymentWorkflow(order: Order): Promise<string> {
+```java {all|5|6|7-12|14}
+@Override
+public String pay(Order order) {
   try {
-    return await chargePayment(order);
-  } catch (err) {
-    if (err instanceof ActivityFailure) {
-      const cause = err.cause;
-      if (cause instanceof TimeoutFailure) {
-        // the Activity timed out
-      } else if (cause instanceof CancelledFailure) {
-        // the Activity was cancelled
-      } else if (cause instanceof ApplicationFailure) {
-        if (cause.type === "PaymentError") return await requestNewCard(order);
-      }
+    return payments.chargePayment(order);
+  } catch (ActivityFailure e) {
+    Throwable cause = e.getCause();
+    if (cause instanceof TimeoutFailure) {
+      // the Activity timed out
+    } else if (cause instanceof CanceledFailure) {
+      // the Activity was canceled
+    } else if (cause instanceof ApplicationFailure af && af.getType().equals("PaymentError")) {
+      return requestNewCard(order);
     }
-    throw err;
+    throw e;
   }
 }
 ```
@@ -233,24 +248,29 @@ export async function paymentWorkflow(order: Order): Promise<string> {
 <!--
 Source: PPT slide 162.
 
-`chargePayment` comes from `proxyActivities` with
-`{ startToCloseTimeout: "30 seconds" }`, and `ActivityFailure`,
-`TimeoutFailure`, `CancelledFailure` and `ApplicationFailure` all come from
-`@temporalio/workflow`. The imports are off the slide to save room; say them.
+`payments` is the Activity stub, a field built with
+`Workflow.newActivityStub(PaymentActivities.class, ...)` and a 30-second
+`setStartToCloseTimeout`. `ActivityFailure`, `TimeoutFailure`,
+`CanceledFailure` and `ApplicationFailure` all come from `io.temporal.failure`.
+The field and imports are off the slide to save room; say them.
 
-The `catch` gets `err` as `unknown`, so `instanceof` is both the check and the
-type narrowing.
+The stub call is a plain blocking call, so this is a plain `try`/`catch`.
+`instanceof` with a pattern variable (`af`) is both the check and the cast.
 
 The branch that does real work is the `PaymentError` one: a business outcome,
 so the Workflow takes a different path, asking for a new card, rather than
 failing. That is what "errors are part of the business logic" means.
 
-`cause.type` is the string the Activity chose on the last slide. It is how a
-Workflow tells failures apart without sharing error classes with the Activity,
-which may live in another service, or another language.
+`getType()` returns the string the Activity chose on the last slide. It is how
+a Workflow tells failures apart without sharing exception classes with the
+Activity, which may live in another service, or another language.
 
-A Child Workflow works the same way: `executeChild` rejects with a
-`ChildWorkflowFailure`, and its `cause` is the child's own failure.
+A Child Workflow works the same way: the child stub call throws a
+`ChildWorkflowFailure`, and its `getCause()` is the child's own failure.
+`ErrorHandlingTest` proves both, and that the rethrown `ActivityFailure` reaches
+the client with its `ApplicationFailure` cause intact.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/errors/PaymentWorkflowImpl.java
 -->
 
 ---
@@ -261,34 +281,33 @@ proseMax: 32
 
 ::code::
 
-```ts
-export async function criticalWorkflow(order: Order): Promise<OrderResult> {
+```java
+@Override
+public OrderResult process(Order order) {
   // Only ApplicationFailure should be thrown on purpose from Workflow code
-  throw ApplicationFailure.create({
-    message: "unrecoverable state",
-    type: "CriticalError",
-  });
+  throw ApplicationFailure.newFailure("unrecoverable state", "CriticalError");
 }
 ```
 
 ::default::
 
 A Temporal failure from Workflow code (`ApplicationFailure`, or a rethrown
-`ActivityFailure`) **fails the Workflow Execution**. Any other error fails only
-the **Workflow Task**, and Temporal retries it until the code is fixed.
+`ActivityFailure`) **fails the Workflow Execution**. Any other exception fails
+only the **Workflow Task**, and Temporal retries it until the code is fixed.
 
 <!--
 Source: PPT slide 163.
 
 Say the consequence of getting this backwards. Throw a plain
-`new Error("invalid order")` meaning "this order is invalid" and the Workflow
-does not fail. It sits there, retrying its Workflow Task, because Temporal
-assumes it is a bug you will deploy a fix for. If you mean "this Workflow has
-failed," say so with `ApplicationFailure`.
+`new IllegalArgumentException("invalid order")` meaning "this order is invalid"
+and the Workflow does not fail. It sits there, retrying its Workflow Task,
+because Temporal assumes it is a bug you will deploy a fix for. If you mean
+"this Workflow has failed," say so with `ApplicationFailure`.
 
-On the client, the caller awaiting `handle.result()` gets a
-`WorkflowFailedError`, and its `cause` is this `ApplicationFailure`, with
-`type` `"CriticalError"`.
+On the client, the stub call throws a `WorkflowFailedException`, and its
+`getCause()` is this `ApplicationFailure`, with `getType()` `"CriticalError"`.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/errors/CriticalWorkflowImpl.java
 -->
 
 ---
@@ -297,12 +316,12 @@ layout: default
 
 # Raising and handling errors
 
-- An error thrown from an **Activity** fails that attempt
+- An exception thrown from an **Activity** fails that attempt
   - It is retried according to the policy, unless it is **non-retryable**
   - Only the final failure is an Event: `ActivityTaskFailed`, with the error details
 - An `ApplicationFailure` (or rethrown `ActivityFailure`) from a **Workflow** fails the Workflow Execution
-- Any other error from a Workflow fails the **Workflow Task**, and is retried
-- Throw **non-retryable** errors when you don't want an Activity retried
+- Any other exception from a Workflow fails the **Workflow Task**, and is retried
+- Throw **non-retryable** failures when you don't want an Activity retried
 
 <!--
 Source: PPT slide 164.
@@ -333,11 +352,12 @@ Temporal gives you a few options for recovering from persistent failure.
 <!--
 Source: PPT slide 167.
 
-In TypeScript, cancellation reaches the Workflow as a `CancelledFailure` (or a
-failure wrapping one) thrown from whatever it is awaiting. Catch it, check it
-with `isCancellation(err)`, run cleanup Activities inside
-`CancellationScope.nonCancellable(...)` so they are not cancelled too, and
-rethrow.
+In Java, cancellation reaches the Workflow as a `CanceledFailure` (or an
+`ActivityFailure` wrapping one) thrown from whatever call it is blocked in:
+`Workflow.sleep`, an Activity stub call, `Promise.get()`. Catch it, run cleanup
+Activities inside `Workflow.newDetachedCancellationScope(() -> ...).run()` so
+they are not canceled too, and rethrow. `Workflow.newCancellationScope(...)`
+is the other half: it lets the Workflow cancel a part of itself.
 
 Reset is the one people do not know about and love once they do: after
 deploying a fix for a bug that failed a batch of Workflows, reset them to just

@@ -11,12 +11,12 @@ Knowing it's healthy before someone tells you it isn't.
 </ZiggyHero>
 
 <!--
-Source: PPT slides 168-186. Ported from the Python Deck.
+Source: PPT slides 168-186.
 
 Most of this segment is Temporal Cloud and SDK metrics, which are the same
-whatever language your Workers are in. The TypeScript-specific parts are at the
-end: turning the metrics exporter on with `Runtime.install`, and logging from
-Workflows and Activities.
+whatever language your Workers are in. The Java-specific parts are at the end:
+turning the metrics exporter on with a Micrometer registry on the service
+stubs, and logging from Workflows and Activities.
 -->
 
 ---
@@ -90,10 +90,16 @@ layout: section
 <!--
 Source: PPT slide 171.
 
-The TypeScript SDK emits every metric with a `temporal_` prefix by default, so
-`worker_task_slots_available` is `temporal_worker_task_slots_available` in your
-Prometheus. The slides use the full names. (`metricPrefix` in the Runtime's
-metrics options changes the prefix.)
+The Java SDK emits every metric with a `temporal_` prefix (the constant
+`MetricsType.TEMPORAL_METRICS_PREFIX`), so `worker_task_slots_available` is
+`temporal_worker_task_slots_available` in your Prometheus. The slides use the
+full names. One thing to warn the room about: through Micrometer's Prometheus
+registry, timers gain a unit suffix, so `temporal_activity_execution_latency`
+is scraped as `temporal_activity_execution_latency_seconds_*`. Search for the
+name, not the exact series. `ObservabilityMetricsTest` checks the slot,
+poller, cache, latency and long-request names on these slides against a real
+scrape. (Counters such as the eviction count appear only once they count
+something.)
 -->
 
 ---
@@ -132,12 +138,23 @@ to break it up and cut what the Worker has to process.
 <!--
 Source: PPT slide 173.
 
-In TypeScript there is a second common cause of high execution latency:
-synchronous CPU work in Workflow code. Workflow code runs in a V8 isolate, and
-nothing else in that Workflow Task runs until the code awaits something. The
-Worker stops Workflow code that runs for 5 seconds without yielding and fails
-the Workflow Task with "Script execution timed out after 5000ms". The Workflow
-stays open and the Task is retried, so it fails again until you fix the code.
+In Java there are two more common causes of high execution latency.
+
+- **Workflow code that holds its thread.** Each Workflow runs on its own
+  Workflow thread, and the SDK hands control between those threads one at a
+  time. Code that does CPU work, blocking IO, `Thread.sleep` or a
+  `synchronized` wait without going back to the SDK holds up the Task. After 1
+  second without yielding (`WorkerOptions.setDefaultDeadlockDetectionTimeout`,
+  default 1000 ms) the Worker fails the Workflow Task with
+  `[TMPRL1101] Potential deadlock detected`. The Workflow stays open and the
+  Task is retried, so it fails again until you fix the code. `TuningTest`
+  proves it.
+- **Running out of Workflow threads.** Workflow threads come from a pool
+  shared by every Worker in the `WorkerFactory`, capped at 600 by
+  `WorkerFactoryOptions.setMaxWorkflowThreadCount`. Cached Workflows keep their
+  threads, so when the pool runs dry the Worker evicts cached Workflows to free
+  threads, and they pay a full replay next time. Watch
+  `temporal_workflow_active_thread_count` against that cap.
 -->
 
 ---
@@ -155,11 +172,14 @@ download the whole Event History from Temporal for every Task.
 <!--
 Source: PPT slide 174.
 
-In TypeScript the cache size is `maxCachedWorkflows` on the Worker. Its default
-comes from the Node heap size: roughly 600 Workflows per GB of heap above the
-first 200 MB, and never fewer than 10. Forced evictions climbing means the
-cache is too small for the number of open Workflows this Worker handles: each
-eviction costs a full replay next time.
+In Java the cache size is `WorkerFactoryOptions.setWorkflowCacheSize`, default
+600, shared by every Worker the factory creates. In practice the thread pool
+often caps it first: each cached Workflow keeps its Workflow threads parked,
+and the pool (`setMaxWorkflowThreadCount`, default 600) is shared too. When a
+Task needs a thread and none is free, the Worker evicts a cached Workflow,
+counted in `temporal_sticky_cache_thread_forced_eviction`. Forced evictions
+climbing means the cache is too small for the number of open Workflows this
+Worker handles: each eviction costs a full replay next time.
 -->
 
 ---
@@ -426,26 +446,33 @@ docs.temporal.io/cloud/metrics/openmetrics/migration-guide has the full
 
 ---
 layout: code-walkthrough
-heading: "Integration: SDK metrics in TypeScript"
+heading: "Integration: SDK metrics in Java"
 notes:
-  - Telemetry is configured on the <strong>Runtime</strong>, once per process, before any connection or Worker exists
-  - The Runtime's <code>logger</code> receives every SDK, Workflow and Activity log line
-  - Serve a Prometheus <code class="ref">/metrics</code> endpoint from the Worker Process on port 9000
+  - The SDK reports to a tally <code>Scope</code>. <code>MicrometerClientStatsReporter</code> hands every metric to a Micrometer Prometheus registry
+  - Set the scope on the <strong>service stubs</strong>, the connection. Every client and Worker built on them reports through it
+  - Serve the registry at <code>/metrics</code> on port 9000, from the Worker Process
 ---
 
 ::code::
 
-```ts {all|3-10|4|5-9}
-import { DefaultLogger, Runtime } from "@temporalio/worker";
+```java {all|1-5|6-7|9-17}
+PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+Scope scope =
+    new RootScopeBuilder()
+        .reporter(new MicrometerClientStatsReporter(registry))
+        .reportEvery(com.uber.m3.util.Duration.ofSeconds(1));
+WorkflowServiceStubsOptions stubsOptions =
+    WorkflowServiceStubsOptions.newBuilder().setMetricsScope(scope).build();
 
-Runtime.install({
-  logger: new DefaultLogger("INFO"),
-  telemetryOptions: {
-    metrics: {
-      prometheus: { bindAddress: "0.0.0.0:9000" },
-    },
-  },
+HttpServer http = HttpServer.create(new InetSocketAddress(9000), 0);
+http.createContext("/metrics", exchange -> {
+  byte[] body = registry.scrape().getBytes(StandardCharsets.UTF_8);
+  exchange.sendResponseHeaders(200, body.length);
+  try (OutputStream out = exchange.getResponseBody()) {
+    out.write(body);
+  }
 });
+http.start();
 ```
 
 <!--
@@ -454,108 +481,136 @@ Source: PPT slide 186.
 What you get: schedule-to-start latency, poll success, sync match; Task slots
 available, sticky cache size and evictions; request latency and failures; and
 Activity Execution and Workflow Execution metrics. Everything on the SDK
-metrics slides, with the same `temporal_` names.
+metrics slides, with the same `temporal_` names (timers with a `_seconds`
+suffix, as the Key SDK metrics notes say).
 
-- **Build 1 - `Runtime.install`.** The Runtime is a process-wide singleton.
-  Every `NativeConnection` and `Worker` in the process uses it. Call `install`
-  first: once a connection or Worker exists, the default Runtime has been
-  created and `install` throws. Calling it twice is the other common mistake.
+- **Build 1 - the scope.** The Java SDK records metrics into a tally `Scope`
+  (`com.uber.m3.tally`). `MicrometerClientStatsReporter` ships with
+  `temporal-sdk` and forwards everything to any Micrometer `MeterRegistry`; the
+  Prometheus one needs `io.micrometer:micrometer-registry-prometheus` on the
+  classpath. `reportEvery` is how often the scope flushes to the registry.
 
-- **Build 2 - `logger`.** Any object that implements the `Logger` interface
-  works here; `DefaultLogger` writes to stderr. Swap in an adapter for Winston
-  or Pino to send Worker logs where the rest of your logs go.
+- **Build 2 - the service stubs.** Pass `stubsOptions` to
+  `WorkflowServiceStubs.newServiceStubs(...)` (add your `setTarget` and TLS as
+  usual). The `WorkflowClient` and every `WorkerFactory` built on those stubs
+  inherit the scope, so this is once per process, before any Worker starts. No
+  scope, no metrics: the default is a no-op scope.
 
-- **Build 3 - the exporter.** From here, scrape it with Prometheus, point a
-  Datadog Agent at it, or run an OpenTelemetry Collector. For push instead of
-  pull, replace `prometheus` with `otel: { url: "..." }`.
+- **Build 3 - the exporter.** The JDK's built-in `HttpServer` is enough to
+  serve a scrape endpoint; in a Spring Boot app, Actuator does this for you.
+  From here, scrape it with Prometheus, point a Datadog Agent at it, or run an
+  OpenTelemetry Collector. For push instead of pull, swap in another Micrometer
+  registry (Datadog, OTLP and so on).
+
+Logging needs no setup here: the SDK logs through SLF4J, so Worker logs go
+wherever your SLF4J backend (Logback, Log4j 2) sends the rest of your logs.
 
 Metrics are not traces. For distributed tracing across Client, Workflow and
-Activity, add the `@temporalio/interceptors-opentelemetry` package: its
-interceptors create spans and propagate the trace context through Temporal's
-headers. Search attributes and the Temporal UI cover the other question
-operators ask, "which Workflows are in this state right now?"
+Activity, add the `io.temporal:temporal-opentracing` module: its
+`OpenTracingClientInterceptor` and `OpenTracingWorkerInterceptor` create spans
+and propagate the trace context through Temporal's headers (OpenTelemetry works
+through its OpenTracing shim). Search attributes and the Temporal UI cover the
+other question operators ask, "which Workflows are in this state right now?"
+
+`ObservabilityMetricsTest` starts this exporter, runs a Workflow against the
+test server on these stubs options, and scrapes every metric name on the SDK
+metrics slides from `http://127.0.0.1:9000/metrics`.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/observability/SdkMetrics.java
 -->
 
 ---
 layout: code-walkthrough
 heading: Logging from a Workflow
 notes:
-  - The Workflow <code>log</code> comes from <code>@temporalio/workflow</code>, not <code class="ref">console</code>
-  - Log with structured attributes. The Worker adds the Workflow ID, run ID, type and Task Queue
+  - The Workflow logger comes from <code>Workflow.getLogger</code>, an SLF4J <code>Logger</code> that knows about replay
+  - Log through SLF4J as usual. The SDK puts the Workflow ID, run ID, type and Task Queue in the MDC
   - Not repeated on replay. This line runs again on every replay, but logs once
 ---
 
 ::code::
 
-```ts {all|1|9|9,11}
-import { log, proxyActivities } from "@temporalio/workflow";
-import type * as activities from "./observability.activities";
+```java {all|2|11|11,13}
+public class OrderWorkflowImpl implements OrderWorkflow {
+  private static final Logger log = Workflow.getLogger(OrderWorkflowImpl.class);
 
-const { chargeCard } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "30 seconds",
-});
+  private final OrderActivities activities =
+      Workflow.newActivityStub(
+          OrderActivities.class,
+          ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(30)).build());
 
-export async function orderWorkflow(orderId: string): Promise<string> {
-  log.info("Order received", { orderId });
-  const receipt = await chargeCard(orderId);
-  log.info("Order charged", { orderId, receipt });
-  return receipt;
+  @Override
+  public String processOrder(String orderId) {
+    log.info("Order received: {}", orderId);
+    String receipt = activities.chargeCard(orderId);
+    log.info("Order charged: {} {}", orderId, receipt);
+    return receipt;
+  }
 }
 ```
 
 <!--
-Source: new for the TypeScript Deck; no PPT or Python Deck slide. Ported
-alongside the Python Deck's observability segment.
+Source: new for this Deck; no PPT slide.
 
-- **Build 1 - the import.** Workflow code runs in a V8 isolate with no Node
-  built-ins, and anything it does must survive replay. `log` sends each entry
-  out of the isolate through a sink to the Runtime's logger from the previous
-  slide.
+- **Build 1 - the logger.** `Workflow.getLogger` wraps an ordinary SLF4J
+  `Logger` (it is `org.slf4j.Logger` on the slide) so that it knows whether the
+  Workflow is replaying. A logger from `LoggerFactory.getLogger` would work, but
+  would log every line again on every replay.
 
-- **Build 2 - attributes.** Pass structured attributes rather than building a
-  string. Every entry also carries `workflowId`, `runId`, `workflowType`,
-  `namespace` and `taskQueue`, so you can filter one execution's lines out of
-  a busy Worker's logs.
+- **Build 2 - context.** Use SLF4J placeholders as usual. While Workflow code
+  runs, the SDK puts `WorkflowId`, `RunId`, `WorkflowType`, `TaskQueue` and
+  `Namespace` in the SLF4J MDC, so a pattern with `%X{WorkflowId}` filters one
+  execution's lines out of a busy Worker's logs. That needs a backend with MDC
+  support, such as Logback or Log4j 2; `slf4j-simple` drops the MDC.
 
 - **Build 3 - replay.** When a Worker replays this Workflow (after a cache
   eviction, or on a different Worker), both `log.info` lines execute again. The
-  SDK drops log calls made during replay, so each line appears once per
-  execution, not once per replay. The snippet test proves it with the sticky
-  cache turned off.
+  replay-aware logger drops log calls made during replay, so each line appears
+  once per execution, not once per replay.
+  (`WorkerFactoryOptions.setEnableLoggingInReplay(true)` turns that off, for
+  debugging.) `ObservabilityLoggingTest` replays the history with
+  `WorkflowReplayer` and proves the method runs again but the lines do not
+  repeat.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/observability/OrderWorkflowImpl.java
 -->
 
 ---
 layout: code-walkthrough
 heading: Logging from an Activity
 notes:
-  - The Activity <code>log</code> comes from <code>@temporalio/activity</code>
-  - Each line carries the Activity type, the attempt number and the Workflow it belongs to
+  - An Activity logs with a plain SLF4J logger from <code>LoggerFactory</code>
+  - The SDK puts the Activity type, the attempt number and the Workflow it belongs to in the MDC for each line
 ---
 
 ::code::
 
-```ts {all|1|4-6}
-import { log } from "@temporalio/activity";
+```java {all|2|6-8}
+public class OrderActivitiesImpl implements OrderActivities {
+  private static final Logger log = LoggerFactory.getLogger(OrderActivitiesImpl.class);
 
-export async function chargeCard(orderId: string): Promise<string> {
-  log.info("Charging card", { orderId });
-  const receipt = `receipt-${orderId}`;
-  log.info("Card charged", { receipt });
-  return receipt;
+  @Override
+  public String chargeCard(String orderId) {
+    log.info("Charging card: {}", orderId);
+    String receipt = "receipt-" + orderId;
+    log.info("Card charged: {}", receipt);
+    return receipt;
+  }
 }
 ```
 
 <!--
-Source: new for the TypeScript Deck; no PPT or Python Deck slide. Ported
-alongside the Python Deck's observability segment.
+Source: new for this Deck; no PPT slide.
 
-- **Build 1 - the import.** `log` is a shortcut for `Context.current().log`,
-  the logger of the Activity that is running now. Like the Workflow logger, it
-  ends up at the Runtime's logger.
+- **Build 1 - the logger.** Activities are ordinary Java, and they are not
+  replayed, so an ordinary SLF4J logger is the right one. No Temporal wrapper.
 
-- **Build 2 - context.** Each entry carries `activityType`, `activityId`,
-  `attempt`, `taskQueue`, and the parent `workflowId`, `workflowRunId` and
-  `workflowType`. Activities are not replayed: each retry is a new attempt, and
-  logs again with the attempt number, which is exactly what you want when you
-  debug a flaky downstream call.
+- **Build 2 - context.** While the Activity runs, the SDK puts `ActivityId`,
+  `ActivityType`, `Attempt`, and the parent `WorkflowId`, `RunId` and
+  `WorkflowType` in the MDC. Each retry is a new attempt, and logs again with
+  the attempt number, which is exactly what you want when you debug a flaky
+  downstream call. As on the last slide, the MDC needs a backend that supports
+  it.
+
+Code: snippets/src/main/java/io/temporal/devdays/essentials/observability/OrderActivitiesImpl.java
 -->
