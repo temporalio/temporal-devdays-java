@@ -9,5 +9,5 @@ One session, `a0e1b034-893b-48fc-b549-5d0192dac511`, measured with
 | Phase | Start (UTC) | End (UTC) |
 |---|---|---|
 | Design interview, scaffold, proof harness | 2026-11-04T15:41:52Z | 2026-11-04T15:52:00Z |
-| Eight parallel Segment workers (worktrees) | 2026-11-04T15:52:00Z | |
-| Merge, whole-Deck review, fixes | | |
+| Eight parallel Segment workers (worktrees), merges | 2026-11-04T15:52:00Z | 2026-11-04T16:26:22Z |
+| Full test run, rendered check, whole-Deck review, fixes | 2026-11-04T16:26:22Z | 2026-11-04T16:50:04Z |
