@@ -11,8 +11,8 @@ Beyond the fundamentals: more of what the platform does for you.
 </ZiggyHero>
 
 <!--
-Ported from the Python Deck's More Features section, with every API checked
-against the TypeScript SDK docs.
+Every API in this section is checked against the Java SDK 1.40.0 sources and
+the Java docs.
 
 A tour, not a lab: features people ask about once the fundamentals land. Each
 gets a "what it is, why it matters" slide, then its code where code helps.
@@ -42,7 +42,7 @@ interval, or a calendar. It lives on the Temporal Service, not on a machine.
 </WhatWhy>
 
 <!--
-Source: docs.temporal.io/develop/typescript/workflows/schedules.
+Source: docs.temporal.io/develop/java/workflows/schedules.
 
 The comparison to land is cron. A crontab entry runs a command on one machine;
 if that machine is down at 9:00, the run is gone and nobody is told. A
@@ -53,50 +53,65 @@ visibility.
 
 ---
 layout: code-walkthrough
-heading: Schedules in TypeScript
+heading: Schedules in Java
 notes:
-  - A Schedule lives on the Temporal Service under its own ID. No cron box to keep alive
+  - "A Schedule lives on the Temporal Service under its own ID. <code>createSchedule</code>, and no cron box to keep alive"
   - "The action: start this Workflow, on this Task Queue, each time the Schedule fires"
-  - "The spec: when. Cron expressions, intervals, or calendars"
+  - "The spec: when. <code>setCronExpressions</code>, intervals, or calendars"
   - "The policy: what to do if the last run is still going. <code>SKIP</code> is the default"
 ---
 
 ::code::
 
-```ts {all|1-2|3-7|8|9}
-const schedule = await client.schedule.create({
-  scheduleId: "daily-report",
-  action: {
-    type: "startWorkflow",
-    workflowType: reportWorkflow,
-    taskQueue: "reports",
-  },
-  spec: { cronExpressions: ["0 9 * * *"] },
-  policies: { overlap: ScheduleOverlapPolicy.SKIP },
-});
+```java {all|1-3|5-13|14|15-16}
+ScheduleHandle schedule =
+    scheduleClient.createSchedule(
+        "daily-report",
+        Schedule.newBuilder()
+            .setAction(
+                ScheduleActionStartWorkflow.newBuilder()
+                    .setWorkflowType(ReportWorkflow.class)
+                    .setOptions(
+                        WorkflowOptions.newBuilder()
+                            .setWorkflowId("daily-report")
+                            .setTaskQueue("reports")
+                            .build())
+                    .build())
+            .setSpec(ScheduleSpec.newBuilder().setCronExpressions(List.of("0 9 * * *")).build())
+            .setPolicy(
+                SchedulePolicy.newBuilder().setOverlap(SCHEDULE_OVERLAP_POLICY_SKIP).build())
+            .build(),
+        ScheduleOptions.newBuilder().build());
 ```
 
 <!--
-Source: docs.temporal.io/develop/typescript/workflows/schedules. The tests
-behind this Deck create this Schedule, check its next run is at 09:00 UTC, and
-trigger it once to watch a Workflow run.
+Source: docs.temporal.io/develop/java/workflows/schedules.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/features/DailyReportSchedule.java.
+The tests behind this Deck create this Schedule on a dev server, check its next
+run is at 09:00 UTC, and trigger it once to watch a Workflow run.
+
+The client is `ScheduleClient.newInstance(service)`, built from the same
+`WorkflowServiceStubs` as your `WorkflowClient`. `SCHEDULE_OVERLAP_POLICY_SKIP`
+is statically imported from `io.temporal.api.enums.v1.ScheduleOverlapPolicy`.
 
 Each run is a normal Workflow Execution with its own history, retries and
-visibility. Temporal appends the scheduled time to the Workflow ID, so runs do
-not collide.
+visibility. The Workflow ID is required, and Temporal appends the scheduled
+time to it, so runs do not collide.
 
 Everything after creation goes through the handle, or
-`client.schedule.getHandle("daily-report")` later: `pause()`, `unpause()`,
-`trigger()` to run once now, `backfill()` to run for a missed window,
-`update()`, `describe()` and `delete()`. The same verbs are on
+`scheduleClient.getHandle("daily-report")` later: `pause()`, `unpause()`,
+`trigger()` to run once now, `backfill(...)` to run for a missed window,
+`update(...)`, `describe()` and `delete()`. The same verbs are on
 `temporal schedule` in the CLI. Creating a Schedule whose ID already exists
-throws `ScheduleAlreadyRunning`; catch it rather than describing first.
+throws `ScheduleAlreadyRunningException`; catch it rather than describing
+first.
 
-`intervals: [{ every: "1 hour" }]` is the alternative to a cron string, and
-`calendars` covers "every Wednesday at 20:30".
+`setIntervals(List.of(new ScheduleIntervalSpec(Duration.ofHours(1))))` is the
+alternative to a cron string, and `setCalendars(...)` covers "every Wednesday
+at 20:30".
 
-Prefer Schedules over the older `cronSchedule` option on `workflow.start`. The
-docs recommend them: they can be paused, updated and backfilled.
+Prefer Schedules over the older `setCronSchedule` option on `WorkflowOptions`.
+The docs recommend them: they can be paused, updated and backfilled.
 -->
 
 ---
@@ -122,9 +137,10 @@ _Public Preview._
 </WhatWhy>
 
 <!--
-Source: docs.temporal.io/develop/typescript/workers/serverless-workers and
+Source: docs.temporal.io/develop/java/workers/serverless-workers and
 docs.temporal.io/serverless-workers. AWS Lambda and GCP Cloud Run support are in
-Public Preview; check the docs before delivering.
+Public Preview; check the docs before delivering. The Java modules are
+`io.temporal:temporal-aws-lambda` and `io.temporal:temporal-gcp-cloud-run`.
 
 The case: running a Worker means choosing hosting, sizing compute, writing
 scaling policies and building a deploy pipeline before the first Workflow runs
@@ -135,46 +151,55 @@ steady high-throughput work is usually cheaper on long-lived Workers.
 
 ---
 layout: code-walkthrough
-heading: Serverless Workers in TypeScript
+heading: Serverless Workers in Java
 notes:
-  - "<code>runWorker</code> returns a Lambda handler. Temporal invokes it when Tasks arrive and no Worker is free"
-  - A Deployment Version is required. Every Serverless Worker uses Worker Versioning
-  - Same registration as any Worker. A Task Queue and the Activities
-  - "<code>workflowBundle</code>: Workflows bundled at build time, so a cold start skips webpack"
+  - "<code>LambdaWorker.define</code> builds a Lambda handler once, at cold start. Temporal invokes it when Tasks arrive and no Worker is free"
+  - "A <code>WorkerDeploymentVersion</code> is required. Every Serverless Worker uses Worker Versioning"
+  - Same registration as any Worker. A Task Queue, the Workflows and the Activities
+  - "<code>handleRequest</code>: each invocation starts a Worker, polls, and shuts down before the Lambda deadline"
 ---
 
 ::code::
 
-```ts {all|1|2|4,8|5-7}
-export const handler = runWorker(
-  { deploymentName: "orders", buildId: "build-1" },
-  (config) => {
-    config.workerOptions.taskQueue = "orders";
-    config.workerOptions.workflowBundle = {
-      codePath: require.resolve("./workflow-bundle.js"),
-    };
-    config.workerOptions.activities = activities;
-  },
-);
+```java {all|2-3|4|6-8|12-13}
+public class OrdersHandler implements RequestHandler<Object, Void> {
+  private static final RequestHandler<Object, Void> WORKER =
+      LambdaWorker.define(
+          new WorkerDeploymentVersion("orders", "build-1"),
+          builder -> {
+            builder.setTaskQueue("orders");
+            builder.registerWorkflowImplementationTypes(OrderWorkflowImpl.class);
+            builder.registerActivitiesImplementations(new OrderActivitiesImpl());
+          });
+
+  @Override
+  public Void handleRequest(Object input, Context context) {
+    return WORKER.handleRequest(input, context);
+  }
+}
 ```
 
 <!--
-Source: docs.temporal.io/develop/typescript/workers/serverless-workers/aws-lambda.
-`runWorker` is from the `@temporalio/lambda-worker` package, in Public Preview;
-APIs may change before the stable release. The tests behind this Deck
-type-check this against the package; it only runs inside Lambda.
+Source: docs.temporal.io/develop/java/workers/serverless-workers/aws-lambda.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/features/OrdersHandler.java.
+`LambdaWorker` is from the `io.temporal:temporal-aws-lambda` module, in Public
+Preview; APIs may change before the stable release. The tests behind this Deck
+compile this against the 1.40.0 module; it only runs inside Lambda. The full
+project is samples-java's `lambda-worker`.
 
 How it works: a server component watches the Task Queue. When a Task arrives
 and no Worker is free to take it, it invokes your Lambda. Each invocation
 starts a Worker, processes Tasks, and shuts down gracefully before the Lambda
-deadline. No work, no compute.
+deadline. No work, no compute. The handler lives in a static field so it is
+built once per cold start and reused across invocations.
 
-The bundle is built in a separate step with `bundleWorkflowCode` from
-`@temporalio/worker`. The package sets Lambda-sized defaults (two concurrent
-Activities, ten Workflow Tasks) and loads the connection from `temporal.toml`
-and environment variables. Workflows default to the `PINNED` versioning
-behavior. Setup the slide leaves out: an IAM role Temporal can assume to invoke
-the function, and a compute provider on the Worker Deployment Version.
+The module sets Lambda-sized defaults (two concurrent Activities, ten
+Workflow Tasks, a Workflow cache of 30) and loads the connection from
+`temporal.toml` and `TEMPORAL_*` environment variables. Workflows default to
+the `PINNED` versioning behavior. Setup the slide leaves out: an IAM role
+Temporal can assume to invoke the function, and a compute provider on the
+Worker Deployment Version. Java Workers want more memory than the docs'
+minimum: start the function at 1024 MB.
 -->
 
 ---
@@ -193,32 +218,25 @@ rate-limited models, and never pay twice for a call that already finished.
   <section>
     <h3>Agent frameworks</h3>
     <div class="chips">
-      <span>Vercel AI SDK</span>
-      <span>OpenAI Agents SDK</span>
+      <span>Spring AI</span>
       <span>Google ADK</span>
-      <span>Strands Agents</span>
-      <span>Mastra</span>
     </div>
   </section>
   <section>
     <h3>Agent observability</h3>
     <div class="chips">
-      <span>LangSmith</span>
-      <span>Braintrust</span>
-      <span>Laminar</span>
       <span>Parseable</span>
     </div>
   </section>
   <section>
-    <h3>Gateways and memory</h3>
+    <h3>Application frameworks</h3>
     <div class="chips">
-      <span>OpenRouter</span>
-      <span>xMemory</span>
+      <span>Spring Boot</span>
     </div>
   </section>
   <section class="own">
     <h3>Not on the list?</h3>
-    <p>Most of these are built on the SDK's <strong>Plugin system</strong>. You can build your own the same way.</p>
+    <p>These are built on the SDK's <strong>Plugin system</strong>. You can build your own the same way.</p>
   </section>
 </div>
 
@@ -270,8 +288,10 @@ rate-limited models, and never pay twice for a call that already finished.
 </style>
 
 <!--
-Source: docs.temporal.io/develop/typescript/integrations, as of 2026-11-02. The
-list grows; check it before delivering and add what is new.
+Source: docs.temporal.io/develop/java/integrations and
+docs.temporal.io/develop/java/integrations/spring-ai, as of 2026-11-04, plus
+the io.temporal:google-adk module on Maven Central. The list grows; check it
+before delivering and add what is new.
 
 Why agents need this: an agent is a long-running loop of model calls and tool
 calls. Models are rate-limited and flaky, tools call real systems, and a crash
@@ -279,13 +299,21 @@ halfway through a 20-step task is expensive to start over. An LLM call is I/O,
 so it belongs in an Activity, which is the rule from the Design Patterns
 section. The integrations do that wiring for you.
 
-The one to show a TypeScript room is the Vercel AI SDK
-(`@temporalio/vercel-ai-sdk`): register `AiSdkPlugin` on the Worker, and in the
-Workflow pass `temporalProvider.languageModel("gpt-4o-mini")` as the model to
-`generateText`. Two lines change, and every model call becomes an Activity.
-The OpenAI Agents SDK integration (`@temporalio/openai-agents`) is in
-Pre-release for TypeScript. Mastra and the observability tools are maintained
-by those projects; the rest live in temporalio/ai-integrations.
+The one to show a Java room is Spring AI (`io.temporal:spring-ai`, Public
+Preview): with the Spring Boot starter, `SpringAiPlugin` registers a
+`ChatModelActivity` on every Worker. In the Workflow, build the chat client
+from `ActivityChatModel.forDefault()` with
+`TemporalChatClient.builder(chatModel)`, and every model call becomes an
+Activity. Tools are dispatched by type: an `@ActivityInterface` stub with
+`@Tool` methods runs as Activities, `@SideEffectTool` classes run in
+`Workflow.sideEffect`. It needs Spring AI 2, Spring Boot 4 and SDK 1.40.0;
+Spring AI 1 applications stay on `io.temporal:temporal-spring-ai:1.40.x`.
+samples-java has `springai/basic`, `mcp`, `multimodel` and `rag`.
+
+Google ADK for Java (`io.temporal:google-adk`) is in Public Preview in
+temporalio/ai-integrations and not yet on the docs' integrations page.
+Parseable is maintained by Parseable. The Plugin system is `SimplePlugin` in
+`io.temporal.common`.
 -->
 
 ---
@@ -324,42 +352,52 @@ enabled per Namespace, and on Temporal Cloud it is a paid feature.
 
 ---
 layout: code-walkthrough
-heading: Priority and Fairness in TypeScript
+heading: Priority and Fairness in Java
 notes:
-  - "<code>priorityKey</code>: 1 to 5, lower dispatches first, default 3. Payments cut ahead of batch work"
-  - "<code>fairnessKey</code>: one virtual queue per tenant, dispatched in proportion to <code>fairnessWeight</code>. A big tenant can't starve the rest"
+  - "<code>setPriorityKey</code>: 1 to 5, lower dispatches first, default 3. Payments cut ahead of batch work"
+  - "<code>setFairnessKey</code>: one virtual queue per tenant, dispatched in proportion to <code>setFairnessWeight</code>. A big tenant can't starve the rest"
 ---
 
 ::code::
 
-```ts {all|5|6-7}
-export async function orderWorkflow(order: Order): Promise<string> {
-  const { chargePayment } = proxyActivities<typeof activities>({
-    startToCloseTimeout: "10 seconds",
-    priority: {
-      priorityKey: 1,
-      fairnessKey: order.tenantId,
-      fairnessWeight: 2,
-    },
-  });
-  return await chargePayment(order);
+```java {all|11|12-13}
+public class OrderWorkflowImpl implements OrderWorkflow {
+  @Override
+  public String processOrder(Order order) {
+    OrderActivities activities =
+        Workflow.newActivityStub(
+            OrderActivities.class,
+            ActivityOptions.newBuilder()
+                .setStartToCloseTimeout(Duration.ofSeconds(10))
+                .setPriority(
+                    Priority.newBuilder()
+                        .setPriorityKey(1)
+                        .setFairnessKey(order.tenantId())
+                        .setFairnessWeight(2)
+                        .build())
+                .build());
+    return activities.chargePayment(order);
+  }
 }
 ```
 
 <!--
-Source: docs.temporal.io/develop/task-queue-priority-fairness. The tests behind
-this Deck run this Workflow and find all three values on the
+Source: docs.temporal.io/develop/task-queue-priority-fairness, and the javadoc
+of `io.temporal.common.Priority` in SDK 1.40.0.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/features/OrderWorkflowImpl.java.
+The tests behind this Deck run this Workflow and find all three values on the
 ActivityTaskScheduled Event.
 
 - **Priority** is strict. All priority-1 Tasks dispatch before the first
-  priority-2 Task.
+  priority-2 Task. Unset (or 0) means 3, the midpoint of the default 1 to 5.
 - **Fairness** works within a priority level. Each key is a virtual queue, and
   keys take turns in proportion to their weights: weights of 5, 3 and 2 give
-  roughly 50%, 30% and 20% of dispatches while all three have a backlog.
+  roughly 50%, 30% and 20% of dispatches while all three have a backlog. The
+  default weight is 1.0, clamped to 0.001 to 1000; keys are at most 64 bytes.
 
-`proxyActivities` is called inside the Workflow here because the fairness key
-comes from the input. Set `priority` the same way on `client.workflow.start`
-or `startChild`. Activities and Child Workflows inherit their Workflow's
+The stub is built inside the Workflow method here because the fairness key
+comes from the input. Set `setPriority` the same way on `WorkflowOptions` or
+`ChildWorkflowOptions`. Activities and Child Workflows inherit their Workflow's
 Priority unless they set their own.
 
 Neither is a rate limit or an isolation boundary. For hard isolation, use a

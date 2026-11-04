@@ -12,8 +12,8 @@ Detect failures with timeouts, then mitigate them with automatic retries.
 
 <!--
 Source: docs.temporal.io/evaluate/features/timeouts-and-retries (timeouts)
-and docs.temporal.io/encyclopedia/retry-policies (Retry Policies). Ported from
-the Python Deck. The diagrams follow the sequence-diagram style of
+and docs.temporal.io/encyclopedia/retry-policies (Retry Policies). The
+diagrams follow the sequence-diagram style of
 docs.temporal.io/design-patterns/fixed-count-retries, stepped one click at a
 time, with the Event History each scenario actually produces.
 
@@ -31,22 +31,25 @@ layout: default
 
 Set by the **Client**, when it starts the Workflow:
 
-```ts
-await client.workflow.start(orderWorkflow, {
-  args: [order],
-  taskQueue,
-  workflowId,
-  workflowExecutionTimeout: "30 days",
-});
+```java
+OrderWorkflow workflow =
+    client.newWorkflowStub(
+        OrderWorkflow.class,
+        WorkflowOptions.newBuilder()
+            .setTaskQueue(taskQueue)
+            .setWorkflowId(workflowId)
+            .setWorkflowExecutionTimeout(Duration.ofDays(30))
+            .build());
+WorkflowClient.start(workflow::processOrder, order);
 ```
 
 </div>
 
-| Timeout                        | Bounds                                                              | Default        | Option                     |
-| ------------------------------ | ------------------------------------------------------------------- | -------------- | -------------------------- |
-| **Workflow Execution Timeout** | The whole Workflow Execution, including retries and Continue-As-New | Infinite       | `workflowExecutionTimeout` |
-| **Workflow Run Timeout**       | A single Workflow Run, excluding retries and Continue-As-New        | Infinite       | `workflowRunTimeout`       |
-| **Workflow Task Timeout**      | One Workflow Task, once a Worker has picked it up                   | 10s (max 120s) | `workflowTaskTimeout`      |
+| Timeout                        | Bounds                                                              | Default        | Option                        |
+| ------------------------------ | ------------------------------------------------------------------- | -------------- | ----------------------------- |
+| **Workflow Execution Timeout** | The whole Workflow Execution, including retries and Continue-As-New | Infinite       | `setWorkflowExecutionTimeout` |
+| **Workflow Run Timeout**       | A single Workflow Run, excluding retries and Continue-As-New        | Infinite       | `setWorkflowRunTimeout`       |
+| **Workflow Task Timeout**      | One Workflow Task, once a Worker has picked it up                   | 10s (max 120s) | `setWorkflowTaskTimeout`      |
 
 Most applications set **none of these**. For time-based logic, use a **Timer**.
 
@@ -57,20 +60,25 @@ Most applications set **none of these**. For time-based logic, use a **Timer**.
 
 <!--
 Source: docs.temporal.io/evaluate/features/timeouts-and-retries#workflow-timeouts.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/timeouts/OrderStarter.java.
+The tests behind this Deck start this Workflow and find the 30 days on its
+WorkflowExecutionStarted Event.
 
 Workflows are built to run for a long time and survive failures, which is why
 most applications set none of these. The docs' own guidance: Workflow Execution and Run Timeouts mostly exist to
 bound Temporal Cron Jobs. A Workflow Execution Timeout on a business process
 means that when it fires, the Workflow just stops, without running any cleanup
 code. If you want "give up after 30 days", write it in the Workflow with a
-Timer and handle it.
+Timer (`Workflow.newTimer` or `Workflow.await` with a timeout) and handle it.
 
-In TypeScript they are `workflowExecutionTimeout`, `workflowRunTimeout` and
-`workflowTaskTimeout` in the options of `client.workflow.start(...)` (or
-`execute`), as a duration string or milliseconds. Not on the Workflow function:
-the caller decides, as with Activities. `taskQueue` and `workflowId` are the two
-options every start needs. The Run Timeout's docs default is "same as
-Execution", which is infinite unless you set it.
+In Java they are `setWorkflowExecutionTimeout`, `setWorkflowRunTimeout` and
+`setWorkflowTaskTimeout` on the `WorkflowOptions` the Client builds the stub
+with, each a `java.time.Duration`. Not on the Workflow interface: the caller
+decides, as with Activities. `setTaskQueue` is the option every start needs,
+and you should always set your own business-meaningful `setWorkflowId`. The
+Run Timeout's docs default is "same as Execution", which is infinite unless
+you set it. The 10-second Workflow Task default and its 120-second maximum are
+from the `setWorkflowTaskTimeout` javadoc.
 
 The Workflow Task Timeout is the one that matters in practice, and nobody
 changes it. The next slide shows why it exists.
@@ -100,9 +108,12 @@ written only once it completes, all three together, with `attempt: 2` on
 Scheduled. If you see a lot of WorkflowTaskTimedOut in
 production, Workers are dying or blocked, not timing out by design.
 
-Not the same thing as the TypeScript Worker's own limit: Workflow code that
-runs for 5 seconds without yielding (a busy loop, say) is stopped by the Worker,
-and that Workflow Task fails. That shows up as WorkflowTaskFailed, not TimedOut.
+Not the same thing as the Java Worker's own deadlock detector: Workflow code
+that holds its thread for more than one second without yielding to the SDK (a
+busy loop, a `Thread.sleep`, a blocking call) gets a
+`PotentialDeadlockException`, and that Workflow Task fails. That shows up as
+WorkflowTaskFailed, not TimedOut. The one second is the default of
+`WorkerOptions.setDefaultDeadlockDetectionTimeout`.
 -->
 
 ---
@@ -113,22 +124,23 @@ layout: default
 
 <div class="set-in">
 
-Set by the **Workflow**, on the proxy it calls the Activity through:
+Set by the **Workflow**, on the stub it calls the Activity through:
 
-```ts
-const { chargePayment } = proxyActivities<typeof activities>({
-  startToCloseTimeout: "10 seconds",
-});
+```java
+private final OrderActivities activities =
+    Workflow.newActivityStub(
+        OrderActivities.class,
+        ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(10)).build());
 ```
 
 </div>
 
-| Timeout                       | Bounds                                                     | Default                 | Option                   |
-| ----------------------------- | ---------------------------------------------------------- | ----------------------- | ------------------------ |
-| **Schedule-To-Start Timeout** | Time an Activity Task waits in the Task Queue for a Worker | Infinite; never retried | `scheduleToStartTimeout` |
-| **Start-To-Close Timeout**    | One attempt, from a Worker picking it up to its result     | Infinite                | `startToCloseTimeout`    |
-| **Schedule-To-Close Timeout** | The whole Activity Execution: every attempt and every wait | Infinite                | `scheduleToCloseTimeout` |
-| **Heartbeat Timeout**         | The gap between two Heartbeats from a running attempt      | None                    | `heartbeatTimeout`       |
+| Timeout                       | Bounds                                                     | Default                 | Option                      |
+| ----------------------------- | ---------------------------------------------------------- | ----------------------- | --------------------------- |
+| **Schedule-To-Start Timeout** | Time an Activity Task waits in the Task Queue for a Worker | Infinite; never retried | `setScheduleToStartTimeout` |
+| **Start-To-Close Timeout**    | One attempt, from a Worker picking it up to its result     | Infinite                | `setStartToCloseTimeout`    |
+| **Schedule-To-Close Timeout** | The whole Activity Execution: every attempt and every wait | Infinite                | `setScheduleToCloseTimeout` |
+| **Heartbeat Timeout**         | The gap between two Heartbeats from a running attempt      | None                    | `setHeartbeatTimeout`       |
 
 Every Activity needs **Start-To-Close or Schedule-To-Close**. Set Start-To-Close:
 the Temporal Service cannot see a Worker crash, and this is the timeout that
@@ -143,17 +155,23 @@ bounds each attempt.
 
 <!--
 Source: docs.temporal.io/evaluate/features/timeouts-and-retries#activity-timeouts.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/timeouts/OrderWorkflowImpl.java.
+The tests behind this Deck find the 10 seconds on the ActivityTaskScheduled
+Event.
 
-All four are options to `proxyActivities(...)` in the Workflow: the caller sets
-them, not the Activity. Every Activity called through that proxy shares them;
-make a second proxy for Activities that need different values. The Activity's
-own code never sets its timeouts.
+All four are setters on the `ActivityOptions` the Workflow builds its stub
+with: the caller sets them, not the Activity. Every method called through that
+stub shares them; make a second stub for Activities that need different
+values, or pass per-method options in `WorkflowImplementationOptions`. The
+Activity's own code never sets its timeouts.
 
 On the Start-To-Close default: the docs say it defaults to the Schedule-To-Close
 Timeout, which is infinite unless you set it. So if you set only
 Schedule-To-Close, each attempt inherits that value; set neither and the SDK
-refuses: `proxyActivities` itself throws a `TypeError` in the Workflow,
-which fails the Workflow Task until you fix the code.
+refuses: calling the stub method throws an `IllegalArgumentException`
+("Both StartToCloseTimeout and ScheduleToCloseTimeout aren't specified") in the
+Workflow, which fails the Workflow Task until you fix the code. The tests
+behind this Deck check that the Workflow stays running with a failed task.
 
 The next four slides take each in turn. Ask the room to guess, before each
 one, which events end up in history. Almost everyone expects to see every
@@ -231,9 +249,10 @@ Worker costs you up to an hour. A 30-second Heartbeat Timeout notices in 30
 seconds.
 
 Two things happen on the retry, both visible in the diagram: the attempt is
-retried, and it gets the last heartbeat details (`[200]`, read back with
-`activityInfo().heartbeatDetails`), so it resumes rather than starting over.
-That is the Heartbeating segment's code, seen from the Service's side.
+retried, and it gets the last heartbeat details (`200`, read back with
+`Activity.getExecutionContext().getHeartbeatDetails(Integer.class)`, an
+`Optional`), so it resumes rather than starting over. That is the Heartbeating
+segment's code, seen from the Service's side.
 
 The Start-To-Close bar goes grey with "had ~59m left": it never fired. The
 Heartbeat Timeout got there first.
@@ -298,31 +317,36 @@ A Retry Policy tells Temporal how and when to try again after a failure.
 
 <!--
 Source: docs.temporal.io/encyclopedia/retry-policies#default-behavior and
-#properties.
+#properties. The defaults match `io.temporal.common.RetryOptions` in SDK
+1.40.0: 1 second, 2.0, 100 times the initial interval, and unlimited attempts.
 
-The TypeScript shape, with the defaults spelled out, is the `retry` option of
-`proxyActivities`:
+The Java shape, with the defaults spelled out, is a `RetryOptions` passed to
+`ActivityOptions.newBuilder().setRetryOptions(...)`:
 
-```ts
-retry: {
-  initialInterval: "1 second",
-  backoffCoefficient: 2,
-  maximumInterval: "100 seconds",
-  // maximumAttempts: leave it unset for unlimited; 1 means no retries
-  nonRetryableErrorTypes: ["CardDeclined"],
-}
+```java
+RetryOptions retryOptions =
+    RetryOptions.newBuilder()
+        .setInitialInterval(Duration.ofSeconds(1))
+        .setBackoffCoefficient(2.0)
+        .setMaximumInterval(Duration.ofSeconds(100))
+        // setMaximumAttempts: leave it unset (or 0) for unlimited; 1 means no retries
+        .setDoNotRetry("CardDeclined")
+        .build();
 ```
 
-In TypeScript, unlimited means leaving `maximumAttempts` out (or `Infinity`).
-The SDK rejects `0`, which other SDKs and the server read as unlimited.
+Code: snippets/src/main/java/io/temporal/devdays/essentials/timeouts/RetryScenarios.java.
+
+In Java, unlimited means leaving `setMaximumAttempts` out, or setting it to
+`0`, which is how the server reads it too. A negative value throws
+`IllegalArgumentException`.
 
 Maximum Attempts of 1 means no retries at all, and is the setting people reach
 for when they mean "don't do this twice". That is an idempotency problem, not a
 retry problem: a single network blip or Worker restart then fails the Activity.
 
-A Workflow can be given a Retry Policy when it is started (`retry` in the
-`client.workflow.start` options). The docs recommend it only for Temporal Cron
-Jobs and stateless, always-running Workflows.
+A Workflow can be given a Retry Policy when it is started (`setRetryOptions`
+on `WorkflowOptions`). The docs recommend it only for Temporal Cron Jobs and
+stateless, always-running Workflows.
 -->
 
 ---
@@ -344,9 +368,12 @@ fourth retry would wait 4s and so on, up to 100s, forever.
 
 The final event is ActivityTaskFailed with retry state MAXIMUM_ATTEMPTS_REACHED,
 and it carries the last attempt's error. Again, attempts 1 and 2 are not in
-history. In the Workflow, the `ActivityFailure` has `retryState`
-`"MAXIMUM_ATTEMPTS_REACHED"`, and its `cause` is the last attempt's error, as an
-`ApplicationFailure`.
+history; the tests behind this Deck check that the one ActivityTaskStarted says
+attempt 3. In the Workflow, the `ActivityFailure` has `getRetryState()`
+`RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED`, and its `getCause()` is the last
+attempt's error, as an `ApplicationFailure`. An exception that was not an
+`ApplicationFailure` keeps its class name as the type, here
+`java.lang.IllegalStateException`.
 
 When a fixed count is right: each attempt costs money or a rate-limited token.
 Otherwise prefer Schedule-To-Close (two slides back).
@@ -368,15 +395,18 @@ A permanent failure: no number of retries will un-decline a card. Two ways to
 stop retrying, and the docs frame it as implementer versus caller:
 
 - **The Activity decides:**
-  `throw ApplicationFailure.create({ type: "CardDeclined", nonRetryable: true })`,
+  `throw ApplicationFailure.newNonRetryableFailure("card declined", "CardDeclined")`,
   as on the slide. Use it when the error is always permanent, whoever calls.
-- **The caller decides:** `retry: { nonRetryableErrorTypes: ["CardDeclined"] }`
-  in the Workflow's `proxyActivities` options. It matches the error's `type`.
-  Use it when only this Workflow knows the error is permanent.
+- **The caller decides:** `RetryOptions.newBuilder().setDoNotRetry("CardDeclined")`
+  in the Workflow's `ActivityOptions`. It matches the failure's type (for a
+  plain exception, its fully qualified class name). Use it when only this
+  Workflow knows the error is permanent.
 
 The docs say to use them sparingly: invalid input is the classic case. The
-Workflow gets an `ActivityFailure` whose `cause` is an `ApplicationFailure` with
-`type` `"CardDeclined"`, which is the Error handling segment's next slide.
+Workflow gets an `ActivityFailure` whose `getCause()` is an
+`ApplicationFailure` with `getType()` `"CardDeclined"`, and `getRetryState()`
+`RETRY_STATE_NON_RETRYABLE_FAILURE`; the tests behind this Deck check both,
+after one attempt. That is the Error handling segment's next slide.
 -->
 
 ---
@@ -405,5 +435,6 @@ not mean there was one. Look at the `attempt` field on ActivityTaskStarted, or
 at Pending Activities while it is still running.
 
 `temporal workflow describe --workflow-id <id>` prints Pending Activities with
-their attempt count and last failure.
+their attempt count and last failure. From Java, `WorkflowStub.describe()`
+returns the same description.
 -->
