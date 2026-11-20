@@ -9,8 +9,9 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Places one order. Watch the WORKER terminal for the [ledger] lines: that is
- * where you see whether the undos ran, and in which order.
+ * Places one order, waits for its Workflow to close, then reads the Workflow's
+ * Event History and prints what Temporal recorded: the steps and undos that
+ * completed, and any undo a landed step is still owed.
  *
  *   run-starter                      a clean order that succeeds
  *   run-starter --fail-reserve       inventory fails before anything lands
@@ -41,25 +42,28 @@ public class Starter {
                 WorkflowServiceStubsOptions.newBuilder().setTarget(target).build());
         WorkflowClient client = WorkflowClient.newInstance(service);
 
+        String workflowId = "fulfillment-" + order.orderId();
         OrderFulfillmentWorkflow workflow = client.newWorkflowStub(
                 OrderFulfillmentWorkflow.class,
                 WorkflowOptions.newBuilder()
                         .setTaskQueue(Shared.TASK_QUEUE)
-                        .setWorkflowId("fulfillment-" + order.orderId())
+                        .setWorkflowId(workflowId)
                         .build());
 
-        System.out.println("\nFulfilling " + order.orderId() + "...");
-        System.out.println("Watch the Worker terminal for [ledger] lines.\n");
+        System.out.println("\nFulfilling " + order.orderId() + "...\n");
         try {
             OrderResult result = workflow.fulfill(order);
             System.out.println("Order completed. Tracking number " + result.trackingNumber());
         } catch (WorkflowFailedException e) {
             // A failed order is a business outcome here, not a crash of the starter.
             System.out.println("Order failed: " + Shared.rootCause(e));
-            System.out.println("\nNow read the ledger in the Worker terminal. A correctly");
-            System.out.println("compensated order ends with the undos present, newest first:");
-            System.out.println("  refund before release.");
+            System.out.println("The Workflow ended Failed. That is expected: the order did not go through.");
         }
+
+        // Read back what Temporal recorded, not what any terminal printed.
+        HistorySummary summary = HistorySummary.of(client.fetchHistory(workflowId), order);
+        System.out.println("\nEvent History of " + workflowId + ":");
+        summary.lines().forEach(System.out::println);
         System.exit(0);
     }
 }

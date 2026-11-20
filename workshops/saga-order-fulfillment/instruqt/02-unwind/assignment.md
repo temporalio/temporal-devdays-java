@@ -72,7 +72,7 @@ must not also leave the stock locked.
 (`Cmd+P` on a Mac), type the file name, then `Ctrl+G` to jump to a line.
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 1 -->
-Lines 59-67 are the two helpers `fulfill` uses to build the Saga and to unwind
+Lines 64-72 are the two helpers `fulfill` uses to build the Saga and to unwind
 it:
 
 ```java
@@ -89,9 +89,10 @@ it:
 
 **Learn.** `fulfill` calls `newSaga()` once at the start, registers an undo
 after each step with `saga.addCompensation(...)`, and calls `unwind(saga)` in
-its `catch (ActivityFailure e)` block, before it rethrows. But `unwind` is
-empty, so when a step fails nothing runs the undos. That is the run you watched
-in Challenge 1.
+its `catch (ActivityFailure e)` block, before it rethrows. (It calls it inside
+a detached cancellation scope, so the undos still run if someone cancels the
+Workflow.) But `unwind` is empty, so when a step fails nothing runs the undos.
+That is the run you watched in Challenge 1.
 
 A Saga runs its undos newest first, one at a time, by default. By default it
 also stops at the first undo that fails, which would leave the older steps
@@ -122,7 +123,7 @@ named after the pattern's word for an undo.
 <summary>Show solution</summary>
 
 <!-- snippet: solution/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 1 -->
-Lines 59-69 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
+Lines 64-74 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
 
 ```java
     // TODO 1 start: run the undos newest first, and keep going when one fails
@@ -144,10 +145,10 @@ Leave the other TODOs alone; they are the next Challenges.
 
 # Run it
 
-The Worker restarts when you save: its tab prints
-`Fulfillment Worker polling fulfillment-tasks` again. If the
-[button label="Worker" background="#444CE7"](tab-1) tab is not running it,
-start it again there:
+Starting this Challenge stopped the Worker you ran in Challenge 1, so its output
+cannot land in a tab you no longer have. Start a fresh one in this Challenge's
+[button label="Worker" background="#444CE7"](tab-1) tab. It compiles your change
+and prints `Fulfillment Worker polling fulfillment-tasks`:
 
 ```bash,run
 run-worker
@@ -159,7 +160,23 @@ In the [button label="Client" background="#444CE7"](tab-2) tab:
 run-starter --fail-dispatch
 ```
 
-The [button label="Worker" background="#444CE7"](tab-1) tab now shows the undos:
+```bash,nocopy
+Order failed: CourierUnavailable: no courier available for this route
+The Workflow ended Failed. That is expected: the order did not go through.
+
+Event History of fulfillment-ORD-XXXXXX:
+  steps completed: ReserveInventory, ChargePayment
+  step failed:     DispatchCourier
+  undos completed: RefundPaymentIfCharged, ReleaseInventoryIfReserved
+  undos still owed: none
+```
+
+The Workflow still ends **Failed**, and that is still expected: compensating is
+not succeeding, and the caller has to learn the order did not go through. What
+changed is the last two lines. Both undos completed, refund first, and none is
+still owed.
+
+The [button label="Worker" background="#444CE7"](tab-1) tab shows them run:
 
 ```bash,nocopy
 [ledger] reserve:ORD-XXXXXX
@@ -175,7 +192,8 @@ release stock while a charge still stood against it.
 
 Open the newest Workflow in the
 [button label="Temporal UI" background="#444CE7"](tab-3) tab (click refresh if
-it isn't listed). Two Activities now appear **after** the failure:
+it isn't listed). Two Activities now appear **after** the failure, in the order
+the Client listed them. These events are the proof the unwind ran:
 
 | Event | Activity |
 |---|---|
@@ -184,17 +202,19 @@ it isn't listed). Two Activities now appear **after** the failure:
 | **Activity Task Completed** | `ReleaseInventoryIfReserved` |
 | **Workflow Execution Failed** | |
 
-The Workflow still ends **Failed**. Compensating is not succeeding: the caller
-has to learn the order did not go through.
-
 One thing `continueWithError` does not do is tell you. A failing undo is
 skipped silently, and `compensate()` returns normally. Its **Activity Task
-Failed** event in the Event History is the record a human has to act on.
+Failed** event in the Event History is the record a human has to act on; the
+Client would print it as an `undos failed:` line. And an undo gives up only when
+its retry policy runs out. This lab gives every Activity two attempts so
+failures show quickly; in production, give the undos a patient retry policy,
+because an undo that gives up leaves its step standing.
 
 # Checkpoint
 
 Click **Check**. It passes when a failed courier leads to refund, then release,
-and when one failing undo does not stop the next. If it fails, the message says
+when one failing undo does not stop the next, and when a cancelled order still
+unwinds. If it fails, the message says
 which of those is still missing.
 
 ---

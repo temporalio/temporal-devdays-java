@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What the downstream systems actually did, in order. Reading the ledger is how
- * you confirm the undos ran, and in which direction.
+ * What the downstream systems actually did, in order. The Event History records
+ * which undos ran; only the ledger shows what each one did.
  *
  * In-process and in-memory on purpose: it stands in for the inventory service
  * and the payment gateway, so the lab can prove an effect happened without

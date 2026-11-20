@@ -74,9 +74,10 @@ ship, and the stock is locked away from everyone else.
 - [button label="Exercise" background="#444CE7"](tab-0) VS Code in the browser, open on this Workshop. You edit
   the code under `exercise/`. It saves as you type.
 - [button label="Worker" background="#444CE7"](tab-1) a terminal in `exercise/`. Run `run-worker` here. It
-  restarts the Worker every time you save.
-- [button label="Client" background="#444CE7"](tab-2) a terminal in `exercise/`. Run `run-starter` here to start
-  a Workflow.
+  restarts the Worker every time you save. Each new Challenge stops the last
+  one's Worker, and you start a fresh one here.
+- [button label="Client" background="#444CE7"](tab-2) a terminal in `exercise/`. Run `run-starter` here to place
+  an order. When its Workflow closes, it prints what the Event History recorded.
 - [button label="Temporal UI" background="#444CE7"](tab-3) the Temporal Web UI of the local dev server:
   every order Workflow, and each Activity it ran or undid, in its Event History.
 
@@ -108,8 +109,11 @@ It compiles for a few seconds, then prints:
 Fulfillment Worker polling fulfillment-tasks
 ```
 
-Then it waits. Leave it running for the whole lab. Every time you save a Java
+Then it waits. Leave it running for this Challenge. Every time you save a Java
 file it recompiles and restarts itself, and every `[ledger]` line appears here.
+When the next Challenge starts, it stops this Worker, and you start a fresh one
+in that Challenge's Worker tab. Only one Worker runs at a time, so its output
+is always in front of you.
 
 # Place an order that fails
 
@@ -121,16 +125,25 @@ run-starter --fail-dispatch
 
 ```bash,nocopy
 Fulfilling ORD-XXXXXX...
-Watch the Worker terminal for [ledger] lines.
 
 Order failed: CourierUnavailable: no courier available for this route
+The Workflow ended Failed. That is expected: the order did not go through.
 
-Now read the ledger in the Worker terminal. A correctly
-compensated order ends with the undos present, newest first:
-  refund before release.
+Event History of fulfillment-ORD-XXXXXX:
+  steps completed: ReserveInventory, ChargePayment
+  step failed:     DispatchCourier
+  undos completed: none
+  undos still owed: RefundPaymentIfCharged, ReleaseInventoryIfReserved
 ```
 
-Now read the [button label="Worker" background="#444CE7"](tab-1) tab:
+**The Workflow ending Failed is expected**, here and in every failure you run
+in this lab: the order did not go through, and the caller has to learn that.
+Whether the failure was cleaned up is a separate question, and the summary
+answers it. The starter read the Workflow's Event History after it closed: two
+steps completed, the courier failed, and both undos are **still owed**.
+
+The [button label="Worker" background="#444CE7"](tab-1) tab shows the same from
+the Worker's side:
 
 ```bash,nocopy
 [ledger] reserve:ORD-XXXXXX
@@ -150,7 +163,8 @@ Open the [button label="Temporal UI" background="#444CE7"](tab-3) tab and click
 the newest `fulfillment-ORD-...` Workflow. If it isn't in the list, click the
 refresh button: the list does not always update on its own.
 
-Read the Activity events from the top:
+Read the Activity events from the top. The Client's summary is built from
+exactly these events:
 
 | Event | Activity |
 |---|---|

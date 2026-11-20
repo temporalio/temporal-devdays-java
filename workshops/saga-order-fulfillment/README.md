@@ -30,9 +30,11 @@ make its undos safe, in four Challenges of one change each:
 exercise/     learner starts here; TODOs between `// TODO N start` / `// TODO N end`
   TODOS.md    every TODO, in order
 solution/     identical, TODOs done
-  src/test/   one test group per Challenge (@Tag challenge2..challenge4);
-              these ARE the Track's Checks (ADR 0002)
+  src/test/   one test group per Challenge (@Tag challenge1..challenge4);
+              these ARE the Track's Checks (ADR 0002). challenge1 covers
+              the Client's Event History summary, outside any TODO
 instruqt/     the Track: track.yml, config.yml, track_scripts/, 01..04/
+              (02..04 each have a setup-workshop that stops the last Worker)
 sandbox/
   Dockerfile      the Sandbox Image, FROM the shared base (ADR 0003)
   challenges.tsv  which Challenge owns which TODOs (for scripts/test-checks.sh)
@@ -52,6 +54,12 @@ mvn -q test                                                # no server needed
 
 In the lab the same two commands are `run-worker` (which restarts the Worker on
 every save) and `run-starter --fail-dispatch`.
+
+When the Workflow closes, the starter reads its Event History
+(`HistorySummary.java`) and prints what Temporal recorded: the steps and undos
+that completed, any undo that failed, and any undo a landed step is still owed.
+The learner sees the unwind in the Client tab, not only in the Worker's
+`[ledger]` lines.
 
 Scenarios: no flag (clean order), `--fail-dispatch`, `--charge-times-out`,
 `--fail-reserve`.
@@ -117,9 +125,25 @@ instruqt track test            # simulates a learner via the solve scripts
 - With `setContinueWithError(true)` the `Saga` swallows a failing undo without
   logging it; `compensate()` returns normally. The failed Activity is in the
   Event History. Production code would alert a human there.
-- Cancellation is out of scope. `fulfill` catches `ActivityFailure` only, so a
-  cancelled Workflow does not unwind. Production code runs `compensate()` in a
-  detached `CancellationScope` (`Workflow.newDetachedCancellationScope`) so the
-  undos survive cancellation. Worth one sentence in the debrief.
+- Cancellation is not taught, but the code handles it. Cancelling the Workflow
+  fails the in-flight Activity with an `ActivityFailure`, so `fulfill`'s catch
+  block runs; without a detached scope, `compensate()` would then schedule each
+  undo in the cancelled scope, where it is cancelled at once, and
+  `continueWithError` would swallow that: no undo runs. So `fulfill` runs
+  `unwind(saga)` in `Workflow.newDetachedCancellationScope(...)`, and the
+  `challenge2` test `cancelledOrderStillUnwinds` proves it. Worth one sentence
+  in the debrief.
+- Every Activity, undos included, gets two attempts, so failures show in about a
+  second. Production undos want a patient retry policy: with
+  `continueWithError`, an undo that runs out of attempts is skipped silently and
+  its step stays standing. The Client's `undos failed` line and the Activity
+  Task Failed event are the only trace.
+- Each Challenge from 2 on starts by stopping the previous Challenge's Worker
+  (its `setup-workshop`): fresh terminal tabs do not stop the old `run-worker`,
+  and a second Worker on the Task Queue takes half the tasks and prints where
+  the learner cannot see it. The assignments say to start a fresh one. A
+  stopped Worker stays listed under the Task Queue's pollers (Temporal UI,
+  `temporal task-queue describe`) for about five minutes after its last poll,
+  but gets no tasks.
 - The code-server tab opens the folder, not the file. Assignments give the file,
   the line range and the `Ctrl+P` / `Ctrl+G` keys instead.

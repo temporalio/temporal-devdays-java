@@ -1,0 +1,35 @@
+#!/bin/bash
+# ABOUTME: Challenge setup. Stops the Worker left running by the previous
+# Challenge, so this Challenge starts with none polling the Task Queue.
+#
+# Each Challenge opens fresh terminal tabs, but the previous Challenge's
+# run-worker (watchexec, and the Maven JVM under it) keeps running, detached.
+# A second Worker on the same Task Queue splits the tasks, and their output
+# (and their in-memory ledger) lands in a terminal the learner no longer has.
+#
+# Idempotent, and never fails the Challenge start: with nothing running it
+# does nothing. The patterns are narrow on purpose: watchexec by its process
+# name, the Worker by the Maven launcher running exec:java@worker. A plain
+# `pkill -f watchexec` would also kill any shell whose command line mentions it.
+set -u
+WORKER_JVM='classworlds.*exec:java@worker'
+
+stop_workers() {
+    # watchexec first, so it cannot restart the Worker it watches; then the JVM.
+    pkill "-$1" -x watchexec 2>/dev/null
+    pkill "-$1" -f "$WORKER_JVM" 2>/dev/null
+}
+
+running() {
+    pgrep -x watchexec >/dev/null 2>&1 || pgrep -f "$WORKER_JVM" >/dev/null 2>&1
+}
+
+stop_workers TERM
+for i in $(seq 1 20); do
+    running || break
+    sleep 0.5
+done
+stop_workers KILL
+
+echo "Challenge setup: no Worker running. Start a fresh one with run-worker."
+exit 0

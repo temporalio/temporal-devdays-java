@@ -54,8 +54,9 @@ charged, the order fails, and nothing ever refunds them.
 
 # See it first
 
-If the [button label="Worker" background="#444CE7"](tab-1) tab is not running
-the Worker, start it there:
+Starting this Challenge stopped the Worker you ran in Challenge 2. Start a
+fresh one in this Challenge's
+[button label="Worker" background="#444CE7"](tab-1) tab:
 
 ```bash,run
 run-worker
@@ -67,6 +68,21 @@ In the [button label="Client" background="#444CE7"](tab-2) tab:
 run-starter --charge-times-out
 ```
 
+```bash,nocopy
+Order failed: PaymentGatewayTimeout: payment gateway timed out after capturing 4999 cents
+The Workflow ended Failed. That is expected: the order did not go through.
+
+Event History of fulfillment-ORD-XXXXXX:
+  steps completed: ReserveInventory
+  step failed:     ChargePayment
+  undos completed: ReleaseInventoryIfReserved
+  undos still owed: RefundPaymentIfCharged
+```
+
+The Workflow ending Failed is expected: the charge failed, so the order did not
+go through. The problem is the last line. The gateway captured 4999 cents
+before it timed out, so the charge owes a refund, and **the refund never ran**.
+
 The [button label="Worker" background="#444CE7"](tab-1) tab:
 
 ```bash,nocopy
@@ -76,11 +92,13 @@ The [button label="Worker" background="#444CE7"](tab-1) tab:
 [ledger] release:ORD-XXXXXX
 ```
 
-The stock came back. **The refund never ran.** In the
+The stock came back; the money did not. In the
 [button label="Temporal UI" background="#444CE7"](tab-3) tab (click refresh if
 the Workflow isn't listed), `ChargePayment` shows **Activity Task Failed**, and
 the only undo after it is `ReleaseInventoryIfReserved`. There is no
 `RefundPaymentIfCharged` event at all: the Workflow never knew it owed one.
+(The history cannot show that the money moved either: the charge reports
+Failed. The Client knows only because this scenario captures before it fails.)
 
 The refund is added to the Saga on the line **after** the charge. When the
 charge throws, that line never runs.
@@ -92,7 +110,7 @@ charge throws, that line never runs.
 `Ctrl+G` to jump to a line).
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2a -->
-Lines 37-40 are the first step of `fulfill` and its undo:
+Lines 40-43 are the first step of `fulfill` and its undo:
 
 ```java
             // TODO 2a start: register the undo BEFORE the step, so swap these two statements
@@ -117,7 +135,7 @@ whatever the step does.
 <summary>Show solution</summary>
 
 <!-- snippet: solution/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2a -->
-Lines 37-40 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
+Lines 40-43 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
 
 ```java
             // TODO 2a start: register the undo BEFORE the step, so swap these two statements
@@ -133,7 +151,7 @@ Lines 37-40 of `solution/.../OrderFulfillmentWorkflowImpl.java`:
 **Observe.**
 
 <!-- snippet: exercise/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2b -->
-Lines 42-45, just below, are the charge and its undo:
+Lines 45-48, just below, are the charge and its undo:
 
 ```java
             // TODO 2b start: same swap for the charge
@@ -154,7 +172,7 @@ customer pays for an order that never ships.
 <summary>Show solution</summary>
 
 <!-- snippet: solution/src/main/java/io/temporal/devdays/saga/OrderFulfillmentWorkflowImpl.java TODO 2b -->
-Lines 42-45:
+Lines 45-48:
 
 ```java
             // TODO 2b start: same swap for the charge
@@ -169,23 +187,42 @@ Leave TODO 3 in `OrderActivitiesImpl.java` alone; it is the next Challenge.
 
 # Run it
 
-Save, and the Worker restarts. Run the same order again:
+Save, and the Worker you started in this Challenge restarts on its own: its tab
+prints `Fulfillment Worker polling fulfillment-tasks` again. In the
+[button label="Client" background="#444CE7"](tab-2) tab, run the same order
+again:
 
 ```bash,run
 run-starter --charge-times-out
 ```
 
 ```bash,nocopy
-[ledger] reserve:ORD-XXXXXX
-[ledger] charge:ORD-XXXXXX
-17:16:52 WARN OrderFulfillmentWorkflowImpl - fulfillment failed for ORD-XXXXXX, unwinding: PaymentGatewayTimeout: payment gateway timed out after capturing 4999 cents
-[ledger] refund:ORD-XXXXXX
-[ledger] release:ORD-XXXXXX
+Order failed: PaymentGatewayTimeout: payment gateway timed out after capturing 4999 cents
+The Workflow ended Failed. That is expected: the order did not go through.
+
+Event History of fulfillment-ORD-XXXXXX:
+  steps completed: ReserveInventory
+  step failed:     ChargePayment
+  undos completed: RefundPaymentIfCharged, ReleaseInventoryIfReserved
+  undos still owed: none
 ```
 
-The refund is back. The newest Workflow in the
-[button label="Temporal UI" background="#444CE7"](tab-3) tab now has a
-`RefundPaymentIfCharged` event after the failed charge.
+The first line is the same as before the fix, word for word: the charge still
+fails, and the Workflow still ends **Failed**, as it should. The difference is
+below it: the refund completed, newest first, and nothing is still owed. The
+[button label="Worker" background="#444CE7"](tab-1) tab now ends with
+`[ledger] refund:ORD-XXXXXX` and then `[ledger] release:ORD-XXXXXX`.
+
+The newest Workflow in the
+[button label="Temporal UI" background="#444CE7"](tab-3) tab is the proof:
+
+| Event | Activity |
+|---|---|
+| **Activity Task Completed** | `ReserveInventory` |
+| **Activity Task Failed** | `ChargePayment` |
+| **Activity Task Completed** | `RefundPaymentIfCharged` |
+| **Activity Task Completed** | `ReleaseInventoryIfReserved` |
+| **Workflow Execution Failed** | |
 
 # Checkpoint
 

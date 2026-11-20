@@ -6,8 +6,8 @@
 #
 # Boots the image, fakes Instruqt's bootstrap marker, runs track setup, confirms
 # the editor (8080) and Temporal UI (8233) answer, then for every Challenge in
-# order: the Check must FAIL on the untouched state, the solve script runs, and
-# the Check must PASS. Exits non-zero on the first broken Challenge.
+# order: its setup-workshop runs (if it has one), the Check must FAIL on the
+# untouched state, the solve script runs, and the Check must PASS. Exits non-zero on the first broken Challenge.
 set -uo pipefail
 
 WS="$(cd "${1:?usage: test-track-local.sh workshops/<slug> <image>}" && pwd)"
@@ -36,6 +36,10 @@ done
 
 for dir in "$WS"/instruqt/[0-9][0-9]-*/; do
     c="$(basename "$dir")"
+    # Instruqt runs a Challenge's own setup when the Challenge starts.
+    if [ -f "$dir/setup-workshop" ] && ! x "bash /opt/track/$c/setup-workshop" >"$OUT" 2>&1; then
+        echo "[FAIL] $c: Challenge setup failed: $(tail -1 "$OUT")"; FAILS=$((FAILS + 1))
+    fi
     if x "bash /opt/track/$c/check-workshop" >"$OUT" 2>&1; then
         echo "[FAIL] $c: Check passed before the work was done"; FAILS=$((FAILS + 1))
     else

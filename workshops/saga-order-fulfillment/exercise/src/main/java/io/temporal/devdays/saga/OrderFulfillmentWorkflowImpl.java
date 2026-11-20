@@ -17,8 +17,11 @@ import org.slf4j.Logger;
 public class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkflow {
     private static final Logger log = Workflow.getLogger(OrderFulfillmentWorkflowImpl.class);
 
-    // Every Activity, undos included, gets two quick attempts. A compensation is
-    // an ordinary Activity with an ordinary retry policy, so it can run more than once.
+    // Every Activity, undos included, gets two quick attempts, so a failure shows
+    // within a second. A compensation is an ordinary Activity with an ordinary
+    // retry policy, so it can run more than once. In production, give the undos a
+    // patient policy (many attempts, with backoff): an undo that gives up leaves
+    // its step standing.
     private final OrderActivities activities = Workflow.newActivityStub(
             OrderActivities.class,
             ActivityOptions.newBuilder()
@@ -49,7 +52,9 @@ public class OrderFulfillmentWorkflowImpl implements OrderFulfillmentWorkflow {
 
         } catch (ActivityFailure e) {
             log.warn("fulfillment failed for {}, unwinding: {}", order.orderId(), Shared.rootCause(e));
-            unwind(saga);
+            // Detached, so the undos still run if the Workflow itself was cancelled:
+            // inside a cancelled scope each undo Activity would be cancelled at once.
+            Workflow.newDetachedCancellationScope(() -> unwind(saga)).run();
             // Compensating is not succeeding. Rethrow so the Workflow ends Failed and
             // the caller learns the order did not go through.
             throw e;
